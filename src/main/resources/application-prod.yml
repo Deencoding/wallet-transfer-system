@@ -1,0 +1,37 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+server:
+  forward-headers-strategy: framework
+
+application:
+  security:
+    audit-pepper: ${SECURITY_AUDIT_PEPPER}
+    hardening:
+      rate-limiting-enabled: true
+      fail-closed: true
+    jwt:
+      public-key: ${JWT_PUBLIC_KEY}
+      private-key: ${JWT_PRIVATE_KEY}
+  provider:
+    simulator-enabled: false
+    webhook-secret: ${PROVIDER_WEBHOOK_SECRET}
+springdoc:
+  api-docs:
+    enabled: ${OPENAPI_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+
+logging:
+  structured:
+    format:
+      console: logstash

@@ -1,0 +1,42 @@
+services:
+  app:
+    environment:
+      RATE_LIMITING_ENABLED: "false"
+      OUTBOX_PUBLISHER_ENABLED: "true"
+      KAFKA_CONSUMER_ENABLED: "true"
+    ports: !override
+      - "58080:8080"
+
+  postgres:
+    ports: !override
+      - "55432:5432"
+
+  redis:
+    ports: !override
+      - "56379:6379"
+
+  kafka:
+    ports: !override
+      - "59092:9092"
+
+  prometheus:
+    ports: !override
+      - "59090:9090"
+
+  grafana:
+    ports: !override
+      - "53000:3000"
+
+  k6:
+    image: grafana/k6:1.2.3
+    user: "${LOAD_UID:-1000}:${LOAD_GID:-1000}"
+    working_dir: /work
+    volumes:
+      - ./load-tests:/work:ro
+      - ./load-tests/results:/results
+    environment:
+      BASE_URL: http://app:8080
+    depends_on:
+      app:
+        condition: service_healthy
+    profiles: ["load"]

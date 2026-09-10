@@ -1,0 +1,25 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "__inputs": [{"name":"DS_PROMETHEUS","label":"Prometheus","type":"datasource","pluginId":"prometheus","pluginName":"Prometheus"}],
+  "panels": [
+    {"type":"timeseries","title":"Transfer throughput","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (outcome) (rate(wallet_transfers_total[5m]))","legendFormat":"{{outcome}}"}],"gridPos":{"h":8,"w":12,"x":0,"y":0}},
+    {"type":"timeseries","title":"Transfer latency p95","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"histogram_quantile(0.95, sum by (le) (rate(wallet_transfer_duration_seconds_bucket[5m])))","legendFormat":"p95"}],"gridPos":{"h":8,"w":12,"x":12,"y":0}},
+    {"type":"timeseries","title":"Outbox backlog","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"wallet_outbox_backlog","legendFormat":"{{status}}"}],"gridPos":{"h":8,"w":12,"x":0,"y":8}},
+    {"type":"timeseries","title":"Oldest pending outbox event","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"wallet_outbox_oldest_pending_age_seconds","legendFormat":"seconds"}],"gridPos":{"h":8,"w":12,"x":12,"y":8}},
+    {"type":"timeseries","title":"Provider outcomes","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (operation,outcome) (rate(wallet_provider_requests_total[5m]))","legendFormat":"{{operation}} {{outcome}}"}],"gridPos":{"h":8,"w":12,"x":0,"y":16}},
+    {"type":"stat","title":"Open reconciliation cases","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"wallet_reconciliation_open_cases{severity=\"all\"}"}],"gridPos":{"h":8,"w":6,"x":12,"y":16}},
+    {"type":"stat","title":"Critical reconciliation cases","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"wallet_reconciliation_open_cases{severity=\"critical\"}"}],"gridPos":{"h":8,"w":6,"x":18,"y":16}},
+    {"type":"timeseries","title":"Database pool","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"hikaricp_connections_active","legendFormat":"active"},{"expr":"hikaricp_connections_pending","legendFormat":"pending"}],"gridPos":{"h":8,"w":12,"x":0,"y":24}},
+    {"type":"timeseries","title":"JVM heap","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(jvm_memory_used_bytes{area=\"heap\"})","legendFormat":"used"},{"expr":"sum(jvm_memory_max_bytes{area=\"heap\"})","legendFormat":"max"}],"gridPos":{"h":8,"w":12,"x":12,"y":24}}
+  ],
+  "refresh": "15s",
+  "schemaVersion": 41,
+  "tags": ["wallet", "fintech"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "Wallet Transfer System",
+  "uid": "wallet-transfer-system",
+  "version": 1
+}

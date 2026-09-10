@@ -1,0 +1,102 @@
+@baseUrl = http://localhost:8080
+@accessToken = replace-with-access-token
+@refreshToken = replace-with-refresh-token
+@receiverWalletId = replace-with-receiver-wallet-uuid
+@transferReference = replace-with-transfer-reference
+@externalReference = replace-with-external-reference
+@adminToken = replace-with-admin-access-token
+@reconciliationCaseId = replace-with-case-uuid
+
+### Register
+POST {{baseUrl}}/api/v1/auth/register
+Content-Type: application/json
+
+{"email":"customer@example.com","password":"correct horse battery staple"}
+
+### Login
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{"email":"customer@example.com","password":"correct horse battery staple"}
+
+### Refresh
+POST {{baseUrl}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{"refreshToken":"{{refreshToken}}"}
+
+### Profile
+GET {{baseUrl}}/api/v1/users/me
+Authorization: Bearer {{accessToken}}
+
+### My wallet
+GET {{baseUrl}}/api/v1/wallets/me
+Authorization: Bearer {{accessToken}}
+
+### Internal transfer
+POST {{baseUrl}}/api/v1/transfers
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: example-transfer-001
+Content-Type: application/json
+
+{"receiverWalletId":"{{receiverWalletId}}","amount":100.00,"currency":"NGN","description":"Sample transfer"}
+
+### Transfer details
+GET {{baseUrl}}/api/v1/transfers/{{transferReference}}
+Authorization: Bearer {{accessToken}}
+
+### Transfer history
+GET {{baseUrl}}/api/v1/transfers?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### External transfer
+POST {{baseUrl}}/api/v1/external-transfers
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: example-external-001
+Content-Type: application/json
+
+{"amount":50.00,"currency":"NGN","beneficiaryToken":"SIM-SUCCESS","description":"Sample bank transfer"}
+
+### External transfer status
+GET {{baseUrl}}/api/v1/external-transfers/{{externalReference}}
+Authorization: Bearer {{accessToken}}
+
+### Provider webhook (calculate HMAC over timestamp.rawBody before use)
+POST {{baseUrl}}/api/v1/webhooks/providers/simulator
+X-Provider-Event-ID: event-001
+X-Provider-Timestamp: replace-with-epoch-seconds
+X-Provider-Signature: replace-with-hmac-sha256-hex
+Content-Type: application/json
+
+{"providerRequestReference":"replace-me","providerTransferReference":"replace-me","status":"SUCCESSFUL"}
+
+### Reverse transfer (ADMIN)
+POST {{baseUrl}}/api/v1/transfers/{{transferReference}}/reverse
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: example-reversal-001
+Content-Type: application/json
+
+{"reason":"Confirmed duplicate transfer"}
+
+### Run financial reconciliation (ADMIN)
+POST {{baseUrl}}/api/v1/admin/reconciliation/runs
+Authorization: Bearer {{adminToken}}
+
+### List reconciliation cases (ADMIN)
+GET {{baseUrl}}/api/v1/admin/reconciliation/cases?page=0&size=20
+Authorization: Bearer {{adminToken}}
+
+### Repair wallet projection (ADMIN)
+POST {{baseUrl}}/api/v1/admin/reconciliation/cases/{{reconciliationCaseId}}/repair-wallet-projection
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: example-repair-001
+Content-Type: application/json
+
+{"reason":"Approved projection rebuild from immutable ledger"}
+
+### Logout
+POST {{baseUrl}}/api/v1/auth/logout
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"refreshToken":"{{refreshToken}}"}
