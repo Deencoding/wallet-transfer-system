@@ -2,7 +2,7 @@
 
 A transaction alone does not make a read-check-write debit safe: two requests can read the same balance and both approve spending it. `WalletService` therefore discovers the stable sender ID, rejects self-transfer, sorts the sender and receiver UUIDs, and loads both rows with PostgreSQL `SELECT ... FOR UPDATE`. Status, currency, and funds are checked again using the locked rows.
 
-Both rows are locked so simultaneous credits to one receiver cannot be lost. UUID ordering prevents the ordinary opposite-direction deadlock cycle. Locks live only inside the short outer `TransferService` transaction; no network, Redis, Kafka, or provider call is performed while held.
+Both rows are locked so simultaneous credits to one receiver cannot be lost. UUID ordering prevents the ordinary opposite-direction deadlock cycle. Locks live only inside the short outer `TransferService` transaction; no network, Redis or Kafka call is performed while held.
 
 PostgreSQL `READ COMMITTED` plus explicit row locks is the selected strategy. Redis locks are not used because they do not share the authoritative database transaction. Optimistic versions remain defense in depth. Lock/deadlock failures roll back and return `WALLET_BUSY`; there is no automatic retry before Phase 7 idempotency.
 

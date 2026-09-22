@@ -37,18 +37,16 @@ public class SecurityAuditService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void authentication(String email, UUID actorId, boolean successful, String reason) {
-        append(
-                "AUTHENTICATION",
-                successful ? "SUCCESS" : "FAILURE",
-                actorId,
-                fingerprint(email == null ? "" : email.trim().toLowerCase(Locale.ROOT)),
-                null,
-                reason);
+        String normalizedEmail = email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+        String principalHash = fingerprint(normalizedEmail);
+        append("AUTHENTICATION", successful ? "SUCCESS" : "FAILURE", actorId, principalHash, null, reason);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void rejected(String type, String principal, String clientAddress, String reason) {
-        append(type, "REJECTED", null, fingerprint(principal), fingerprint(clientAddress), reason);
+        String principalHash = fingerprint(principal);
+        String addressHash = fingerprint(clientAddress);
+        append(type, "REJECTED", null, principalHash, addressHash, reason);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -58,7 +56,7 @@ public class SecurityAuditService {
 
     private void append(
             String type, String outcome, UUID actorId, String principalHash, String addressHash, String reason) {
-        events.saveAndFlush(new SecurityEvent(
+        SecurityEvent event = new SecurityEvent(
                 UUID.randomUUID(),
                 type,
                 outcome,
@@ -70,14 +68,18 @@ public class SecurityAuditService {
                 reason,
                 MDC.get(CorrelationIdFilter.MDC_KEY),
                 clock.instant(),
-                "{}"));
+                "{}");
+        events.saveAndFlush(event);
     }
 
     public String fingerprint(String value) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(pepper, "HmacSHA256"));
-            return HexFormat.of().formatHex(mac.doFinal(String.valueOf(value).getBytes(StandardCharsets.UTF_8)));
+            SecretKeySpec signingKey = new SecretKeySpec(pepper, "HmacSHA256");
+            mac.init(signingKey);
+            byte[] input = String.valueOf(value).getBytes(StandardCharsets.UTF_8);
+            byte[] digest = mac.doFinal(input);
+            return HexFormat.of().formatHex(digest);
         } catch (Exception failure) {
             throw new IllegalStateException("Could not fingerprint security principal", failure);
         }

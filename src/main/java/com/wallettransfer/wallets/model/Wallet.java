@@ -1,8 +1,10 @@
 package com.wallettransfer.wallets.model;
 
+import com.wallettransfer.shared.exception.DomainErrorCode;
 import com.wallettransfer.shared.money.Currency;
 import com.wallettransfer.wallets.exception.InvalidWalletStateTransitionException;
 import com.wallettransfer.wallets.exception.WalletHasBalanceException;
+import com.wallettransfer.wallets.exception.WalletTransferRejectedException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -114,13 +116,11 @@ public class Wallet {
 
     public void debit(BigDecimal amount, Instant now) {
         if (status != WalletStatus.ACTIVE)
-            throw new com.wallettransfer.wallets.exception.WalletTransferRejectedException(
-                    com.wallettransfer.shared.exception.DomainErrorCode.SENDER_WALLET_UNAVAILABLE,
-                    "Sender wallet cannot initiate transfers");
+            throw new WalletTransferRejectedException(
+                    DomainErrorCode.SENDER_WALLET_UNAVAILABLE, "Sender wallet cannot initiate transfers");
         if (availableBalance.compareTo(amount) < 0)
-            throw new com.wallettransfer.wallets.exception.WalletTransferRejectedException(
-                    com.wallettransfer.shared.exception.DomainErrorCode.INSUFFICIENT_FUNDS,
-                    "Insufficient available funds");
+            throw new WalletTransferRejectedException(
+                    DomainErrorCode.INSUFFICIENT_FUNDS, "Insufficient available funds");
         availableBalance = availableBalance.subtract(amount);
         ledgerBalance = ledgerBalance.subtract(amount);
         updatedAt = now;
@@ -128,36 +128,10 @@ public class Wallet {
 
     public void credit(BigDecimal amount, Instant now) {
         if (status == WalletStatus.CLOSED)
-            throw new com.wallettransfer.wallets.exception.WalletTransferRejectedException(
-                    com.wallettransfer.shared.exception.DomainErrorCode.RECEIVER_WALLET_UNAVAILABLE,
-                    "Receiver wallet cannot receive transfers");
+            throw new WalletTransferRejectedException(
+                    DomainErrorCode.RECEIVER_WALLET_UNAVAILABLE, "Receiver wallet cannot receive transfers");
         availableBalance = availableBalance.add(amount);
         ledgerBalance = ledgerBalance.add(amount);
-        updatedAt = now;
-    }
-
-    public void reserve(BigDecimal amount, Instant now) {
-        if (status != WalletStatus.ACTIVE)
-            throw new com.wallettransfer.wallets.exception.WalletTransferRejectedException(
-                    com.wallettransfer.shared.exception.DomainErrorCode.SENDER_WALLET_UNAVAILABLE,
-                    "Sender wallet cannot initiate transfers");
-        if (availableBalance.compareTo(amount) < 0)
-            throw new com.wallettransfer.wallets.exception.WalletTransferRejectedException(
-                    com.wallettransfer.shared.exception.DomainErrorCode.INSUFFICIENT_FUNDS,
-                    "Insufficient available funds");
-        availableBalance = availableBalance.subtract(amount);
-        updatedAt = now;
-    }
-
-    public void releaseReservation(BigDecimal amount, Instant now) {
-        availableBalance = availableBalance.add(amount);
-        updatedAt = now;
-    }
-
-    public void settleReservation(BigDecimal amount, Instant now) {
-        if (ledgerBalance.compareTo(amount) < 0)
-            throw new IllegalStateException("Ledger balance cannot settle reservation");
-        ledgerBalance = ledgerBalance.subtract(amount);
         updatedAt = now;
     }
 }

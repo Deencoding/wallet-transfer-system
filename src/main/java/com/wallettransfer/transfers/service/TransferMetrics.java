@@ -22,12 +22,13 @@ public class TransferMetrics {
     public void successfulAfterCommit(Timer.Sample sample) {
         Runnable record = () -> record(sample, "successful");
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            TransactionSynchronization synchronization = new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
                     record.run();
                 }
-            });
+            };
+            TransactionSynchronizationManager.registerSynchronization(synchronization);
         } else {
             record.run();
         }
@@ -40,6 +41,7 @@ public class TransferMetrics {
     private void record(Timer.Sample sample, String outcome) {
         registry.counter("wallet.transfers", "type", "internal", "outcome", outcome)
                 .increment();
-        sample.stop(registry.timer("wallet.transfer.duration", "type", "internal", "outcome", outcome));
+        Timer timer = registry.timer("wallet.transfer.duration", "type", "internal", "outcome", outcome);
+        sample.stop(timer);
     }
 }

@@ -20,20 +20,27 @@ public class ReconciliationQueryService {
 
     @Transactional(readOnly = true)
     public Page<ReconciliationRunResponse> runs(int page, int size) {
-        return runs.findAllByOrderByStartedAtDesc(PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size))))
-                .map(ReconciliationRunResponse::from);
+        int pageNumber = Math.max(0, page);
+        int minimumSize = Math.max(1, size);
+        int pageSize = Math.min(100, minimumSize);
+        var pageable = PageRequest.of(pageNumber, pageSize);
+        var reconciliationRuns = runs.findAllByOrderByStartedAtDesc(pageable);
+        return reconciliationRuns.map(ReconciliationRunResponse::from);
     }
 
     @Transactional(readOnly = true)
     public Page<ReconciliationCaseResponse> cases(int page, int size) {
-        return cases.findAllByOrderByLastDetectedAtDesc(
-                        PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size))))
-                .map(ReconciliationCaseResponse::from);
+        int pageNumber = Math.max(0, page);
+        int minimumSize = Math.max(1, size);
+        int pageSize = Math.min(100, minimumSize);
+        var pageable = PageRequest.of(pageNumber, pageSize);
+        var reconciliationCases = cases.findAllByOrderByLastDetectedAtDesc(pageable);
+        return reconciliationCases.map(ReconciliationCaseResponse::from);
     }
 
     @Transactional(readOnly = true)
     public ReconciliationCaseResponse caseById(UUID id) {
-        return ReconciliationCaseResponse.from(
-                cases.findById(id).orElseThrow(ReconciliationCaseNotFoundException::new));
+        var reconciliationCase = cases.findById(id).orElseThrow(ReconciliationCaseNotFoundException::new);
+        return ReconciliationCaseResponse.from(reconciliationCase);
     }
 }

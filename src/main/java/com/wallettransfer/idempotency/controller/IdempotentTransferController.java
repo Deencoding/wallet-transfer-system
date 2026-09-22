@@ -24,8 +24,9 @@ public class IdempotentTransferController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestHeader("Idempotency-Key") String key,
             @Valid @RequestBody CreateTransferRequest request) {
-        var response = idempotency.executeTransfer(UUID.fromString(jwt.getSubject()), key, request);
-        return ResponseEntity.created(URI.create("/api/v1/transfers/" + response.reference()))
-                .body(response);
+        UUID ownerId = UUID.fromString(jwt.getSubject());
+        TransferResponse response = idempotency.executeTransfer(ownerId, key, request);
+        URI location = URI.create("/api/v1/transfers/" + response.reference());
+        return ResponseEntity.created(location).body(response);
     }
 }

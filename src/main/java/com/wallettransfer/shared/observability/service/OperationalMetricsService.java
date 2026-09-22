@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.ToDoubleFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -59,8 +60,7 @@ public class OperationalMetricsService {
         return snapshot.get();
     }
 
-    private void gauge(
-            String name, String status, java.util.function.ToDoubleFunction<OperationalBacklogSnapshot> value) {
+    private void gauge(String name, String status, ToDoubleFunction<OperationalBacklogSnapshot> value) {
         Gauge.builder(name, snapshot, state -> value.applyAsDouble(state.get()))
                 .tag("status", status)
                 .register(registry);

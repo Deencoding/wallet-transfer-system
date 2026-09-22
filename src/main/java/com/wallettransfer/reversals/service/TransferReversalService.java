@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.*;
 import java.util.*;
+import java.util.HexFormat;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,9 +54,10 @@ public class TransferReversalService {
         String fingerprint = fingerprint(transferReference, request.reason());
         var replay = reversals.findByRequestedByAndIdempotencyKey(actorId, key);
         if (replay.isPresent()) {
-            if (!replay.get().getRequestFingerprint().equals(fingerprint))
+            TransferReversal existingReversal = replay.get();
+            if (!existingReversal.getRequestFingerprint().equals(fingerprint))
                 throw new ReversalIdempotencyConflictException();
-            return ReversalResponse.from(replay.get());
+            return ReversalResponse.from(existingReversal);
         }
         if (reversals.findByOriginalTransferId(transfer.getId()).isPresent())
             throw new ReversalAlreadyExistsException();
@@ -92,20 +94,18 @@ public class TransferReversalService {
         reversal.succeed(posting.journalId(), clock.instant());
         transfer.reverse(clock.instant());
         audit.record(id, actorId, transfer.getId(), transfer.getReference(), request.reason());
-        outbox.append(
-                "TRANSFER",
+        String eventAmount = money.amount().toPlainString();
+        TransferReversedEvent event = new TransferReversedEvent(
+                id,
+                reference,
                 transfer.getId(),
-                "TransferReversed",
-                1,
-                new TransferReversedEvent(
-                        id,
-                        reference,
-                        transfer.getId(),
-                        transfer.getReference(),
-                        money.amount().toPlainString(),
-                        money.currency().name(),
-                        reversal.getCompletedAt()));
-        return ReversalResponse.from(reversals.saveAndFlush(reversal));
+                transfer.getReference(),
+                eventAmount,
+                money.currency().name(),
+                reversal.getCompletedAt());
+        outbox.append("TRANSFER", transfer.getId(), "TransferReversed", 1, event);
+        TransferReversal savedReversal = reversals.saveAndFlush(reversal);
+        return ReversalResponse.from(savedReversal);
     }
 
     private void validateKey(String key) {
@@ -115,9 +115,10 @@ public class TransferReversalService {
 
     private String fingerprint(String reference, String reason) {
         try {
-            return java.util.HexFormat.of()
-                    .formatHex(MessageDigest.getInstance("SHA-256")
-                            .digest((reference + "|" + reason).getBytes(StandardCharsets.UTF_8)));
+            MessageDigest hasher = MessageDigest.getInstance("SHA-256");
+            byte[] input = (reference + "|" + reason).getBytes(StandardCharsets.UTF_8);
+            byte[] digest = hasher.digest(input);
+            return HexFormat.of().formatHex(digest);
         } catch (Exception error) {
             throw new IllegalStateException(error);
         }

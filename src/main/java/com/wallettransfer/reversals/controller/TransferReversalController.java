@@ -27,8 +27,9 @@ public class TransferReversalController {
             @PathVariable String reference,
             @RequestHeader("Idempotency-Key") String key,
             @Valid @RequestBody CreateReversalRequest request) {
-        var response = service.reverse(UUID.fromString(jwt.getSubject()), reference, key, request);
-        return ResponseEntity.created(URI.create("/api/v1/transfers/" + reference + "/reverse"))
-                .body(response);
+        UUID actorId = UUID.fromString(jwt.getSubject());
+        var response = service.reverse(actorId, reference, key, request);
+        URI location = URI.create("/api/v1/transfers/" + reference + "/reverse");
+        return ResponseEntity.created(location).body(response);
     }
 }

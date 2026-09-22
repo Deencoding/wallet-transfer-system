@@ -1,6 +1,5 @@
 package com.wallettransfer.messaging.configuration;
 
-import com.wallettransfer.outbox.configuration.OutboxProperties;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.context.annotation.*;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
@@ -13,8 +12,7 @@ public class KafkaConsumerConfiguration {
     @Bean
     ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
             ConsumerFactory<String, String> consumerFactory,
-            KafkaTemplate<String, String> template,
-            OutboxProperties properties) {
+            KafkaTemplate<String, String> template) {
         var recoverer = new DeadLetterPublishingRecoverer(
                 template, (record, error) -> new TopicPartition(record.topic() + ".dlt", record.partition()));
         var backoff = new ExponentialBackOffWithMaxRetries(2);

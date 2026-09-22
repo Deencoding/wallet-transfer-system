@@ -19,7 +19,8 @@ public class TransferController {
 
     @GetMapping("/{reference}")
     public TransferResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable String reference) {
-        return transfers.get(UUID.fromString(jwt.getSubject()), reference);
+        UUID ownerId = UUID.fromString(jwt.getSubject());
+        return transfers.get(ownerId, reference);
     }
 
     @GetMapping
@@ -27,6 +28,7 @@ public class TransferController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return transfers.list(UUID.fromString(jwt.getSubject()), page, size);
+        UUID ownerId = UUID.fromString(jwt.getSubject());
+        return transfers.list(ownerId, page, size);
     }
 }

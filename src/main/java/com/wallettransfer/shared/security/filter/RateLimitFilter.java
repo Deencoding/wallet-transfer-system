@@ -47,8 +47,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         response.setStatus(429);
         response.setHeader("Retry-After", Long.toString(decision.retryAfterSeconds()));
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        mapper.writeValue(
-                response.getOutputStream(), new ApiError("RATE_LIMIT_EXCEEDED", "Too many requests. Try again later."));
+        ApiError error = new ApiError("RATE_LIMIT_EXCEEDED", "Too many requests. Try again later.");
+        mapper.writeValue(response.getOutputStream(), error);
     }
 
     private String principal(HttpServletRequest request) {
@@ -80,12 +80,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (path.equals("/api/v1/transfers")) {
             return new RateLimitPolicy("transfer", 30, Duration.ofMinutes(1));
         }
-        if (path.equals("/api/v1/external-transfers"))
-            return new RateLimitPolicy("external-transfer", 10, Duration.ofMinutes(1));
         if (path.equals("/api/v1/admin/reconciliation/runs"))
             return new RateLimitPolicy("reconciliation", 3, Duration.ofHours(1));
-        if (path.startsWith("/api/v1/webhooks/providers/"))
-            return new RateLimitPolicy("webhook", 120, Duration.ofMinutes(1));
         return null;
     }
 }

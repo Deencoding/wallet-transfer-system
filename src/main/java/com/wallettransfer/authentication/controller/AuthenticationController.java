@@ -49,7 +49,8 @@ public class AuthenticationController {
     @PostMapping("/logout")
     @Operation(summary = "Revoke the current refresh-token family")
     ResponseEntity<Void> logout(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody RefreshTokenRequest request) {
-        authentication.logout(UUID.fromString(jwt.getSubject()), request.refreshToken());
+        UUID ownerId = UUID.fromString(jwt.getSubject());
+        authentication.logout(ownerId, request.refreshToken());
         return ResponseEntity.noContent().build();
     }
 }

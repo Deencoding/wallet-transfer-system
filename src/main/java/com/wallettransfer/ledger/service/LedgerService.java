@@ -7,6 +7,7 @@ import com.wallettransfer.ledger.repository.*;
 import com.wallettransfer.shared.money.Currency;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +35,8 @@ public class LedgerService {
         if (accounts.existsByWalletId(walletId)) {
             return;
         }
-        accounts.saveAndFlush(new LedgerAccount(UUID.randomUUID(), walletId, currency, clock.instant()));
+        LedgerAccount account = new LedgerAccount(UUID.randomUUID(), walletId, currency, clock.instant());
+        accounts.saveAndFlush(account);
     }
 
     @Transactional
@@ -43,12 +45,12 @@ public class LedgerService {
             throw new InvalidLedgerEntryException("A journal requires at least two entries");
         BigDecimal debits = BigDecimal.ZERO, credits = BigDecimal.ZERO;
         Map<UUID, LedgerAccount> loaded = new HashMap<>();
-        for (var line : command.entries()) {
+        for (LedgerEntryCommand line : command.entries()) {
             if (line.amount() == null
                     || line.amount().signum() <= 0
                     || line.amount().scale() > command.currency().scale())
                 throw new InvalidLedgerEntryException("Entry amounts must be positive and scale 2");
-            var account = loaded.computeIfAbsent(line.ledgerAccountId(), id -> accounts.findById(id)
+            LedgerAccount account = loaded.computeIfAbsent(line.ledgerAccountId(), id -> accounts.findById(id)
                     .orElseThrow(LedgerAccountNotFoundException::new));
             if (account.getStatus() != LedgerAccountStatus.ACTIVE)
                 throw new InvalidLedgerEntryException("Ledger account is closed");
@@ -64,28 +66,26 @@ public class LedgerService {
         if (debits.compareTo(credits) != 0) {
             throw new UnbalancedJournalException();
         }
-        var now = clock.instant();
+        Instant now = clock.instant();
         UUID id = UUID.randomUUID();
         String ref = "JRN-" + UUID.randomUUID().toString().replace("-", "").toUpperCase();
-        journals.save(new JournalTransaction(
+        JournalTransaction journal = new JournalTransaction(
                 id,
                 ref,
                 command.sourceType(),
                 command.sourceReference(),
                 command.currency(),
                 command.description(),
-                now));
+                now);
+        journals.save(journal);
         short sequence = 1;
-        for (var line : command.entries())
-            entries.save(new JournalEntry(
-                    UUID.randomUUID(),
-                    id,
-                    line.ledgerAccountId(),
-                    sequence++,
-                    line.type(),
-                    line.amount().setScale(command.currency().scale()),
-                    command.currency(),
-                    now));
+        for (LedgerEntryCommand line : command.entries()) {
+            UUID entryId = UUID.randomUUID();
+            BigDecimal entryAmount = line.amount().setScale(command.currency().scale());
+            JournalEntry entry = new JournalEntry(
+                    entryId, id, line.ledgerAccountId(), sequence++, line.type(), entryAmount, command.currency(), now);
+            entries.save(entry);
+        }
         entries.flush();
         return new LedgerPostingResult(id, ref);
     }
@@ -95,39 +95,21 @@ public class LedgerService {
     }
 
     @Transactional
-    public LedgerPostingResult postTransfer(
+    public void postTransfer(
             String transferReference,
             UUID senderWalletId,
             UUID receiverWalletId,
             BigDecimal amount,
             Currency currency,
             String description) {
-        var sender = getAccountForWallet(senderWalletId);
-        var receiver = getAccountForWallet(receiverWalletId);
-        return post(new LedgerPostingCommand(
-                JournalSourceType.TRANSFER,
-                transferReference,
-                currency,
-                description,
-                List.of(
-                        new LedgerEntryCommand(sender.getId(), EntryType.DEBIT, amount),
-                        new LedgerEntryCommand(receiver.getId(), EntryType.CREDIT, amount))));
-    }
-
-    @Transactional
-    public LedgerPostingResult postExternalTransfer(
-            String reference, UUID walletId, BigDecimal amount, Currency currency, String description) {
-        var wallet = getAccountForWallet(walletId);
-        var settlement = accounts.findByAccountCode("PLATFORM-NGN-EXTERNAL-SETTLEMENT")
-                .orElseThrow(LedgerAccountNotFoundException::new);
-        return post(new LedgerPostingCommand(
-                JournalSourceType.EXTERNAL_TRANSFER,
-                reference,
-                currency,
-                description,
-                List.of(
-                        new LedgerEntryCommand(wallet.getId(), EntryType.DEBIT, amount),
-                        new LedgerEntryCommand(settlement.getId(), EntryType.CREDIT, amount))));
+        LedgerAccount sender = getAccountForWallet(senderWalletId);
+        LedgerAccount receiver = getAccountForWallet(receiverWalletId);
+        LedgerEntryCommand debitEntry = new LedgerEntryCommand(sender.getId(), EntryType.DEBIT, amount);
+        LedgerEntryCommand creditEntry = new LedgerEntryCommand(receiver.getId(), EntryType.CREDIT, amount);
+        List<LedgerEntryCommand> postingEntries = List.of(debitEntry, creditEntry);
+        LedgerPostingCommand command = new LedgerPostingCommand(
+                JournalSourceType.TRANSFER, transferReference, currency, description, postingEntries);
+        post(command);
     }
 
     @Transactional
@@ -138,15 +120,13 @@ public class LedgerService {
             BigDecimal amount,
             Currency currency,
             String reason) {
-        var receiver = getAccountForWallet(originalReceiverId);
-        var sender = getAccountForWallet(originalSenderId);
-        return post(new LedgerPostingCommand(
-                JournalSourceType.REVERSAL,
-                reference,
-                currency,
-                reason,
-                List.of(
-                        new LedgerEntryCommand(receiver.getId(), EntryType.DEBIT, amount),
-                        new LedgerEntryCommand(sender.getId(), EntryType.CREDIT, amount))));
+        LedgerAccount receiver = getAccountForWallet(originalReceiverId);
+        LedgerAccount sender = getAccountForWallet(originalSenderId);
+        LedgerEntryCommand debitEntry = new LedgerEntryCommand(receiver.getId(), EntryType.DEBIT, amount);
+        LedgerEntryCommand creditEntry = new LedgerEntryCommand(sender.getId(), EntryType.CREDIT, amount);
+        List<LedgerEntryCommand> postingEntries = List.of(debitEntry, creditEntry);
+        LedgerPostingCommand command =
+                new LedgerPostingCommand(JournalSourceType.REVERSAL, reference, currency, reason, postingEntries);
+        return post(command);
     }
 }

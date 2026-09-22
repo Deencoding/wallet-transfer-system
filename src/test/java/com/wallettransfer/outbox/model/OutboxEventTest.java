@@ -10,12 +10,13 @@ class OutboxEventTest {
     @Test
     void transitionsThroughClaimFailureAndPublication() {
         Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        var retryAt = now.plusSeconds(1);
         var event = new OutboxEvent(
                 UUID.randomUUID(), "TRANSFER", UUID.randomUUID(), "TransferCompleted", 1, "{}", null, now);
         assertThat(event.getStatus()).isEqualTo(OutboxStatus.PENDING);
         event.claim(now);
         assertThat(event.getStatus()).isEqualTo(OutboxStatus.PROCESSING);
-        event.failed(now, now.plusSeconds(1), "offline", 10);
+        event.failed(now, retryAt, "offline", 10);
         assertThat(event.getStatus()).isEqualTo(OutboxStatus.FAILED);
         assertThat(event.getAttemptCount()).isOne();
         event.claim(now);

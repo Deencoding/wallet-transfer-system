@@ -32,7 +32,9 @@ public class LedgerReconciliationService {
         if (stored.compareTo(calculated) == 0) {
             return Optional.empty();
         }
-        return Optional.of(new LedgerDiscrepancy(
-                walletId, account.getId(), stored, calculated, calculated.subtract(stored), clock.instant()));
+        var difference = calculated.subtract(stored);
+        LedgerDiscrepancy discrepancy =
+                new LedgerDiscrepancy(walletId, account.getId(), stored, calculated, difference, clock.instant());
+        return Optional.of(discrepancy);
     }
 }

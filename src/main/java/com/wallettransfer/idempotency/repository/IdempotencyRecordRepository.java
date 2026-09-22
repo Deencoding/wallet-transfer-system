@@ -10,7 +10,30 @@ public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRe
     @Modifying
     @Query(
             value =
-                    "INSERT INTO idempotency_records(id,client_identity,endpoint,idempotency_key,request_fingerprint,status,created_at,updated_at,expires_at) VALUES(:id,:userId,:endpoint,:key,:fingerprint,'PROCESSING',:now,:now,:expires) ON CONFLICT(client_identity,endpoint,idempotency_key) DO NOTHING",
+                    """
+                    INSERT INTO idempotency_records (
+                        id,
+                        client_identity,
+                        endpoint,
+                        idempotency_key,
+                        request_fingerprint,
+                        status,
+                        created_at,
+                        updated_at,
+                        expires_at
+                    ) VALUES (
+                        :id,
+                        :userId,
+                        :endpoint,
+                        :key,
+                        :fingerprint,
+                        'PROCESSING',
+                        :now,
+                        :now,
+                        :expires
+                    )
+                    ON CONFLICT (client_identity, endpoint, idempotency_key) DO NOTHING
+                    """,
             nativeQuery = true)
     int claim(
             @Param("id") UUID id,

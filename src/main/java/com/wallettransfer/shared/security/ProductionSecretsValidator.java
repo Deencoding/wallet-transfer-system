@@ -24,7 +24,6 @@ public final class ProductionSecretsValidator implements ApplicationRunner {
         requireConfigured("JWT_PUBLIC_KEY");
         requireConfigured("JWT_PRIVATE_KEY");
         requireStrongSecret("DB_PASSWORD", 16);
-        requireStrongSecret("PROVIDER_WEBHOOK_SECRET", 32);
         requireStrongSecret("SECURITY_AUDIT_PEPPER", 32);
     }
 

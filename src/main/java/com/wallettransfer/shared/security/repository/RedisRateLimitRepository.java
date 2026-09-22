@@ -23,15 +23,15 @@ public class RedisRateLimitRepository {
     }
 
     public RateLimitDecision consume(String key, RateLimitPolicy policy) {
-        List<?> result = redis.execute(
-                SCRIPT,
-                List.of("wallet:rate:" + key),
-                Long.toString(policy.window().toMillis()));
+        List<String> keys = List.of("wallet:rate:" + key);
+        String windowMillis = Long.toString(policy.window().toMillis());
+        List<?> result = redis.execute(SCRIPT, keys, windowMillis);
         if (result == null || result.size() != 2) {
             throw new IllegalStateException("Redis returned an invalid rate-limit result");
         }
         long count = ((Number) result.get(0)).longValue();
         long ttlMillis = Math.max(0, ((Number) result.get(1)).longValue());
-        return new RateLimitDecision(count <= policy.requests(), Math.max(1, (ttlMillis + 999) / 1000));
+        long retryAfterSeconds = Math.max(1, (ttlMillis + 999) / 1000);
+        return new RateLimitDecision(count <= policy.requests(), retryAfterSeconds);
     }
 }

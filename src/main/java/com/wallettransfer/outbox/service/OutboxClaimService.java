@@ -5,6 +5,7 @@ import com.wallettransfer.outbox.model.OutboxEvent;
 import com.wallettransfer.outbox.repository.OutboxEventRepository;
 import java.time.*;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,7 +24,8 @@ public class OutboxClaimService {
     @Transactional
     public List<OutboxEvent> claim() {
         Instant now = clock.instant();
-        var events = repository.findClaimable(now, now.minus(properties.claimLease()), properties.batchSize());
+        Instant leaseExpired = now.minus(properties.claimLease());
+        var events = repository.findClaimable(now, leaseExpired, properties.batchSize());
         events.forEach(event -> event.claim(now));
         return List.copyOf(events);
     }
@@ -36,14 +38,15 @@ public class OutboxClaimService {
     @Transactional
     public void failed(UUID id, Throwable failure) {
         var event = repository.findById(id).orElseThrow();
-        long exponential = Math.min(
-                properties.maxBackoff().toMillis(),
-                properties.initialBackoff().toMillis() * (1L << Math.min(event.getAttemptCount(), 20)));
-        long jitter = java.util.concurrent.ThreadLocalRandom.current().nextLong(Math.max(1, exponential / 4));
-        event.failed(
-                clock.instant(),
-                clock.instant().plusMillis(exponential + jitter),
-                failure.getMessage(),
-                properties.maxAttempts());
+        long maximumBackoffMillis = properties.maxBackoff().toMillis();
+        long initialBackoffMillis = properties.initialBackoff().toMillis();
+        int cappedAttemptCount = Math.min(event.getAttemptCount(), 20);
+        long exponentialBackoffMillis = initialBackoffMillis * (1L << cappedAttemptCount);
+        long exponential = Math.min(maximumBackoffMillis, exponentialBackoffMillis);
+        long jitterBound = Math.max(1, exponential / 4);
+        long jitter = ThreadLocalRandom.current().nextLong(jitterBound);
+        Instant failedAt = clock.instant();
+        Instant nextAttemptAt = clock.instant().plusMillis(exponential + jitter);
+        event.failed(failedAt, nextAttemptAt, failure.getMessage(), properties.maxAttempts());
     }
 }

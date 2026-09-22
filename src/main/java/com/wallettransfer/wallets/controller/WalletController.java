@@ -20,6 +20,7 @@ public class WalletController {
 
     @GetMapping("/me")
     WalletResponse me(@AuthenticationPrincipal Jwt jwt) {
-        return wallets.getMyWallet(UUID.fromString(jwt.getSubject()));
+        UUID ownerId = UUID.fromString(jwt.getSubject());
+        return wallets.getMyWallet(ownerId);
     }
 }

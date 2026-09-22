@@ -4,6 +4,7 @@ import com.wallettransfer.audit.model.*;
 import com.wallettransfer.audit.repository.AuditRecordRepository;
 import java.time.*;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,16 +18,17 @@ public class ReconciliationRepairAuditService {
     }
 
     public void record(UUID repairId, UUID actor, UUID walletId, String details) {
-        records.save(new AuditRecord(
+        AuditRecord record = new AuditRecord(
                 UUID.randomUUID(),
                 repairId,
                 actor,
                 AuditAction.RECONCILIATION_REPAIR,
                 "WALLET",
                 walletId,
-                org.slf4j.MDC.get("correlationId"),
+                MDC.get("correlationId"),
                 details,
                 clock.instant(),
-                clock.instant()));
+                clock.instant());
+        records.save(record);
     }
 }

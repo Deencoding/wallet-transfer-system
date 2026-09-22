@@ -18,6 +18,7 @@ import com.wallettransfer.users.model.User;
 import com.wallettransfer.users.service.UserService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -55,7 +56,8 @@ public class AuthenticationService {
     }
 
     public UserProfileResponse register(String email, String password) {
-        return registration.register(email, passwords.hash(password));
+        String passwordHash = passwords.hash(password);
+        return registration.register(email, passwordHash);
     }
 
     @Transactional
@@ -111,11 +113,13 @@ public class AuthenticationService {
     }
 
     private boolean sameToken(RefreshToken current, RefreshTokenClaims claims, String rawToken) {
-        return current.getUserId().equals(claims.userId())
-                && current.getFamilyId().equals(claims.familyId())
-                && MessageDigest.isEqual(
-                        current.getFingerprint().getBytes(StandardCharsets.US_ASCII),
-                        fingerprint(rawToken).getBytes(StandardCharsets.US_ASCII));
+        if (!current.getUserId().equals(claims.userId())
+                || !current.getFamilyId().equals(claims.familyId())) {
+            return false;
+        }
+        byte[] storedFingerprint = current.getFingerprint().getBytes(StandardCharsets.US_ASCII);
+        byte[] suppliedFingerprint = fingerprint(rawToken).getBytes(StandardCharsets.US_ASCII);
+        return MessageDigest.isEqual(storedFingerprint, suppliedFingerprint);
     }
 
     private TokenResponse issuePair(User user, UUID family) {
@@ -126,30 +130,34 @@ public class AuthenticationService {
     }
 
     private RefreshToken persistRefresh(UUID userId, IssuedToken token) {
-        return refreshTokens.save(new RefreshToken(
-                UUID.randomUUID(),
+        UUID tokenId = UUID.randomUUID();
+        String tokenFingerprint = fingerprint(token.value());
+        RefreshToken refreshToken = new RefreshToken(
+                tokenId,
                 userId,
                 token.jwtId(),
                 token.familyId(),
-                fingerprint(token.value()),
+                tokenFingerprint,
                 token.issuedAt(),
-                token.expiresAt()));
+                token.expiresAt());
+        return refreshTokens.save(refreshToken);
     }
 
     private TokenResponse response(IssuedToken access, IssuedToken refresh) {
-        return new TokenResponse(
-                access.value(),
-                refresh.value(),
-                "Bearer",
-                Duration.between(access.issuedAt(), access.expiresAt()).toSeconds(),
-                Duration.between(refresh.issuedAt(), refresh.expiresAt()).toSeconds());
+        long accessExpiresIn =
+                Duration.between(access.issuedAt(), access.expiresAt()).toSeconds();
+        long refreshExpiresIn =
+                Duration.between(refresh.issuedAt(), refresh.expiresAt()).toSeconds();
+        return new TokenResponse(access.value(), refresh.value(), "Bearer", accessExpiresIn, refreshExpiresIn);
     }
 
     private String fingerprint(String token) {
         try {
-            return HexFormat.of()
-                    .formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
-        } catch (java.security.NoSuchAlgorithmException exception) {
+            MessageDigest hasher = MessageDigest.getInstance("SHA-256");
+            byte[] input = token.getBytes(StandardCharsets.UTF_8);
+            byte[] digest = hasher.digest(input);
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException(exception);
         }
     }

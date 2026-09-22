@@ -1,5 +1,6 @@
 package com.wallettransfer.audit.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallettransfer.audit.model.*;
 import com.wallettransfer.audit.repository.AuditRecordRepository;
@@ -29,9 +30,10 @@ public class AuditService {
             String currency,
             Instant occurredAt) {
         try {
-            String details = mapper.writeValueAsString(
-                    Map.of("reference", reference, "amount", amount, "currency", currency, "status", "SUCCESSFUL"));
-            repository.save(new AuditRecord(
+            Map<String, String> auditDetails =
+                    Map.of("reference", reference, "amount", amount, "currency", currency, "status", "SUCCESSFUL");
+            String details = mapper.writeValueAsString(auditDetails);
+            AuditRecord record = new AuditRecord(
                     UUID.randomUUID(),
                     eventId,
                     actorId,
@@ -41,8 +43,9 @@ public class AuditService {
                     correlationId,
                     details,
                     occurredAt,
-                    clock.instant()));
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                    clock.instant());
+            repository.save(record);
+        } catch (JsonProcessingException e) {
             throw new IllegalStateException("Could not serialize audit details", e);
         }
     }

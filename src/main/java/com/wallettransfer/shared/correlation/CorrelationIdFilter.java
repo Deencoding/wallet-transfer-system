@@ -15,6 +15,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerMapping;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -35,8 +36,7 @@ public final class CorrelationIdFilter extends OncePerRequestFilter {
         try (MDC.MDCCloseable ignored = MDC.putCloseable(MDC_KEY, correlationId)) {
             filterChain.doFilter(request, response);
         } finally {
-            Object route = request.getAttribute(
-                    org.springframework.web.servlet.HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+            Object route = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
             log.info(
                     "HTTP request completed method={} route={} status={} durationMs={}",
                     request.getMethod(),

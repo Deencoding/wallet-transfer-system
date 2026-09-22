@@ -15,8 +15,10 @@ public class TransferRequestFingerprinter {
                 + "\ndescription="
                 + (description == null ? "null" : description.length() + ":" + description);
         try {
-            return HexFormat.of()
-                    .formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8)));
+            MessageDigest hasher = MessageDigest.getInstance("SHA-256");
+            byte[] input = canonical.getBytes(StandardCharsets.UTF_8);
+            byte[] digest = hasher.digest(input);
+            return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException(exception);
         }

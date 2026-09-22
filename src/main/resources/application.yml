@@ -46,13 +46,6 @@ application:
   financial-reconciliation:
     enabled: ${FINANCIAL_RECONCILIATION_ENABLED:true}
     cron: ${FINANCIAL_RECONCILIATION_CRON:0 0 2 * * *}
-  reconciliation:
-    enabled: ${RECONCILIATION_ENABLED:true}
-    poll-interval: ${RECONCILIATION_POLL_INTERVAL:PT5S}
-  provider:
-    simulator-enabled: ${PROVIDER_SIMULATOR_ENABLED:true}
-    webhook-secret: ${PROVIDER_WEBHOOK_SECRET}
-    webhook-tolerance: ${PROVIDER_WEBHOOK_TOLERANCE:PT5M}
   messaging:
     consumer-enabled: ${KAFKA_CONSUMER_ENABLED:true}
   outbox:
@@ -113,7 +106,6 @@ management:
     distribution:
       percentiles-histogram:
         wallet.transfer.duration: true
-        wallet.provider.request.duration: true
         wallet.outbox.publish.duration: true
 
 springdoc:

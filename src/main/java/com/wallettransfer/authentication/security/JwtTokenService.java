@@ -40,34 +40,38 @@ public class JwtTokenService {
         Instant issued = clock.instant();
         Instant expires = issued.plus(properties.accessTokenTtl());
         UUID id = UUID.randomUUID();
+        List<String> audience = List.of(properties.accessAudience());
+        List<String> roleNames = roles.stream().map(Enum::name).sorted().toList();
         JwtClaimsSet claims = base(userId, id, issued, expires)
-                .audience(List.of(properties.accessAudience()))
+                .audience(audience)
                 .claim("token_type", "access")
-                .claim("roles", roles.stream().map(Enum::name).sorted().toList())
+                .claim("roles", roleNames)
                 .build();
-        return new IssuedToken(encode(claims), id, null, issued, expires);
+        String token = encode(claims);
+        return new IssuedToken(token, id, null, issued, expires);
     }
 
     public IssuedToken issueRefreshToken(UUID userId, UUID familyId) {
         Instant issued = clock.instant();
         Instant expires = issued.plus(properties.refreshTokenTtl());
         UUID id = UUID.randomUUID();
+        List<String> audience = List.of(properties.refreshAudience());
         JwtClaimsSet claims = base(userId, id, issued, expires)
-                .audience(List.of(properties.refreshAudience()))
+                .audience(audience)
                 .claim("token_type", "refresh")
                 .claim("family_id", familyId.toString())
                 .build();
-        return new IssuedToken(encode(claims), id, familyId, issued, expires);
+        String token = encode(claims);
+        return new IssuedToken(token, id, familyId, issued, expires);
     }
 
     public RefreshTokenClaims decodeRefresh(String token) {
         try {
             Jwt jwt = refreshDecoder.decode(token);
-            return new RefreshTokenClaims(
-                    UUID.fromString(jwt.getSubject()),
-                    UUID.fromString(jwt.getId()),
-                    UUID.fromString(jwt.getClaimAsString("family_id")),
-                    jwt.getExpiresAt());
+            UUID userId = UUID.fromString(jwt.getSubject());
+            UUID jwtId = UUID.fromString(jwt.getId());
+            UUID familyId = UUID.fromString(jwt.getClaimAsString("family_id"));
+            return new RefreshTokenClaims(userId, jwtId, familyId, jwt.getExpiresAt());
         } catch (JwtException | IllegalArgumentException exception) {
             throw new InvalidTokenException();
         }
@@ -83,8 +87,9 @@ public class JwtTokenService {
     }
 
     private String encode(JwtClaimsSet claims) {
-        return encoder.encode(JwtEncoderParameters.from(
-                        JwsHeader.with(SignatureAlgorithm.RS256).type("JWT").build(), claims))
-                .getTokenValue();
+        JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).type("JWT").build();
+        JwtEncoderParameters parameters = JwtEncoderParameters.from(header, claims);
+        Jwt token = encoder.encode(parameters);
+        return token.getTokenValue();
     }
 }

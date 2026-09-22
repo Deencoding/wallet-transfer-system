@@ -20,6 +20,8 @@ public class UserController {
 
     @GetMapping("/me")
     UserProfileResponse me(@AuthenticationPrincipal Jwt jwt) {
-        return UserProfileResponse.from(users.getById(UUID.fromString(jwt.getSubject())));
+        UUID ownerId = UUID.fromString(jwt.getSubject());
+        var user = users.getById(ownerId);
+        return UserProfileResponse.from(user);
     }
 }

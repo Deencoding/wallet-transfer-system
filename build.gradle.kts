@@ -31,8 +31,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.apache.commons:commons-lang3")
     implementation("org.springframework.kafka:spring-kafka")
-    implementation("io.github.resilience4j:resilience4j-spring-boot3:2.3.0")
-    implementation("io.github.resilience4j:resilience4j-micrometer:2.3.0")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
@@ -69,7 +67,6 @@ tasks.withType<Test> {
     useJUnitPlatform()
     systemProperty("DB_USERNAME", "wallet_test")
     systemProperty("DB_PASSWORD", "wallet_test")
-    systemProperty("PROVIDER_WEBHOOK_SECRET", "test-provider-webhook-secret-at-least-32-characters")
     systemProperty("SECURITY_AUDIT_PEPPER", "test-security-audit-pepper-at-least-32-characters")
     testLogging {
         events("failed", "skipped")

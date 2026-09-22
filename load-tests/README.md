@@ -10,13 +10,13 @@ Load tests run only against the isolated `wallet-load` Compose project. Never ch
 The fixture password is `load-test-password`. Funding is inserted as balanced opening-balance journals; no load-only application endpoint exists. The seed refuses to run after fixture transfers exist. Reset the environment explicitly with:
 
 ```bash
-docker compose --env-file env.local -p wallet-load -f compose.yml -f ops/load/compose.load.yml down -v
+docker compose -p wallet-load -f compose.yml -f ops/load/compose.load.yml down -v
 ```
 
 Additional scenarios can be invoked with the k6 service:
 
 ```bash
-docker compose --env-file env.local -p wallet-load -f compose.yml -f ops/load/compose.load.yml --profile load run --rm k6 \
+docker compose -p wallet-load -f compose.yml -f ops/load/compose.load.yml --profile load run --rm k6 \
   run /work/scenarios/idempotency-storm.js
 ```
 

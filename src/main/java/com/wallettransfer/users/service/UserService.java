@@ -36,7 +36,8 @@ public class UserService {
         Role customerRole = roles.findByName(RoleName.CUSTOMER)
                 .orElseThrow(() -> new IllegalStateException("Required CUSTOMER role is missing"));
         try {
-            return users.saveAndFlush(new User(UUID.randomUUID(), email, passwordHash, customerRole, clock.instant()));
+            User user = new User(UUID.randomUUID(), email, passwordHash, customerRole, clock.instant());
+            return users.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {
             throw new EmailAlreadyRegisteredException();
         }
@@ -45,7 +46,8 @@ public class UserService {
     @Transactional(readOnly = true)
     public Optional<User> findForAuthentication(String rawEmail) {
         try {
-            return users.findByEmail(new EmailAddress(rawEmail).value());
+            EmailAddress email = new EmailAddress(rawEmail);
+            return users.findByEmail(email.value());
         } catch (IllegalArgumentException exception) {
             return Optional.empty();
         }

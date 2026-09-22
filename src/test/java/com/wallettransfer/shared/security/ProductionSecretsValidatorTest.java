@@ -11,9 +11,11 @@ class ProductionSecretsValidatorTest {
 
     @Test
     void rejectsMissingProductionSecrets() {
-        ProductionSecretsValidator validator = new ProductionSecretsValidator(new MockEnvironment());
+        MockEnvironment mockEnvironment = new MockEnvironment();
+        ProductionSecretsValidator validator = new ProductionSecretsValidator(mockEnvironment);
 
-        assertThatThrownBy(() -> validator.run(new DefaultApplicationArguments()))
+        DefaultApplicationArguments arguments = new DefaultApplicationArguments();
+        assertThatThrownBy(() -> validator.run(arguments))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("JWT_PUBLIC_KEY");
     }
@@ -24,10 +26,10 @@ class ProductionSecretsValidatorTest {
                 .withProperty("JWT_PUBLIC_KEY", "externally-provided-public-key")
                 .withProperty("JWT_PRIVATE_KEY", "externally-provided-private-key")
                 .withProperty("DB_PASSWORD", "a5ec79cb49684386a9156d594be3a809");
-        environment.withProperty("PROVIDER_WEBHOOK_SECRET", "2e4da4fa551449fb8f812650fe31a9b6");
         environment.withProperty("SECURITY_AUDIT_PEPPER", "731bc479b04b4c9e9530132ad2be7650");
         ProductionSecretsValidator validator = new ProductionSecretsValidator(environment);
 
-        assertThatCode(() -> validator.run(new DefaultApplicationArguments())).doesNotThrowAnyException();
+        DefaultApplicationArguments arguments = new DefaultApplicationArguments();
+        assertThatCode(() -> validator.run(arguments)).doesNotThrowAnyException();
     }
 }

@@ -10,10 +10,10 @@ public class OpenApiConfiguration {
 
     @Bean
     OpenAPI walletTransferOpenApi() {
-        return new OpenAPI()
-                .info(new Info()
-                        .title("Wallet and Money Transfer API")
-                        .version("v1")
-                        .description("Modular-monolith API. Business endpoints are introduced incrementally."));
+        Info info = new Info()
+                .title("Wallet and Money Transfer API")
+                .version("v1")
+                .description("Modular-monolith API. Business endpoints are introduced incrementally.");
+        return new OpenAPI().info(info);
     }
 }

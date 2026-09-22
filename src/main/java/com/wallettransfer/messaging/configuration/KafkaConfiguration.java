@@ -20,20 +20,4 @@ public class KafkaConfiguration {
                 .replicas(1)
                 .build();
     }
-
-    @Bean
-    NewTopic externalTransferRequests() {
-        return TopicBuilder.name("wallet.external-transfer.requests.v1")
-                .partitions(3)
-                .replicas(1)
-                .build();
-    }
-
-    @Bean
-    NewTopic externalTransferRequestsDlt() {
-        return TopicBuilder.name("wallet.external-transfer.requests.v1.dlt")
-                .partitions(3)
-                .replicas(1)
-                .build();
-    }
 }

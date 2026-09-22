@@ -3,7 +3,6 @@
 @refreshToken = replace-with-refresh-token
 @receiverWalletId = replace-with-receiver-wallet-uuid
 @transferReference = replace-with-transfer-reference
-@externalReference = replace-with-external-reference
 @adminToken = replace-with-admin-access-token
 @reconciliationCaseId = replace-with-case-uuid
 
@@ -48,27 +47,6 @@ Authorization: Bearer {{accessToken}}
 ### Transfer history
 GET {{baseUrl}}/api/v1/transfers?page=0&size=20
 Authorization: Bearer {{accessToken}}
-
-### External transfer
-POST {{baseUrl}}/api/v1/external-transfers
-Authorization: Bearer {{accessToken}}
-Idempotency-Key: example-external-001
-Content-Type: application/json
-
-{"amount":50.00,"currency":"NGN","beneficiaryToken":"SIM-SUCCESS","description":"Sample bank transfer"}
-
-### External transfer status
-GET {{baseUrl}}/api/v1/external-transfers/{{externalReference}}
-Authorization: Bearer {{accessToken}}
-
-### Provider webhook (calculate HMAC over timestamp.rawBody before use)
-POST {{baseUrl}}/api/v1/webhooks/providers/simulator
-X-Provider-Event-ID: event-001
-X-Provider-Timestamp: replace-with-epoch-seconds
-X-Provider-Signature: replace-with-hmac-sha256-hex
-Content-Type: application/json
-
-{"providerRequestReference":"replace-me","providerTransferReference":"replace-me","status":"SUCCESSFUL"}
 
 ### Reverse transfer (ADMIN)
 POST {{baseUrl}}/api/v1/transfers/{{transferReference}}/reverse

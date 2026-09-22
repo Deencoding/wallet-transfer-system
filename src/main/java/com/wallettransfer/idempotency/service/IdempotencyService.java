@@ -1,8 +1,10 @@
 package com.wallettransfer.idempotency.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallettransfer.idempotency.exception.*;
 import com.wallettransfer.idempotency.fingerprint.TransferRequestFingerprinter;
+import com.wallettransfer.idempotency.model.IdempotencyRecord;
 import com.wallettransfer.idempotency.repository.IdempotencyRecordRepository;
 import com.wallettransfer.transfers.dto.*;
 import com.wallettransfer.transfers.service.TransferService;
@@ -37,11 +39,12 @@ public class IdempotencyService {
     public TransferResponse executeTransfer(UUID userId, String key, CreateTransferRequest request) {
         validate(key);
         String fingerprint = fingerprints.fingerprint(request);
-        var now = clock.instant();
+        Instant now = clock.instant();
         UUID id = UUID.randomUUID();
-        int claimed = records.claim(id, userId, ENDPOINT, key, fingerprint, now, now.plus(Duration.ofHours(24)));
+        Instant expiresAt = now.plus(Duration.ofHours(24));
+        int claimed = records.claim(id, userId, ENDPOINT, key, fingerprint, now, expiresAt);
         if (claimed == 0) {
-            var existing = records.findByClientIdentityAndEndpointAndIdempotencyKey(userId, ENDPOINT, key)
+            IdempotencyRecord existing = records.findByClientIdentityAndEndpointAndIdempotencyKey(userId, ENDPOINT, key)
                     .orElseThrow();
             if (!existing.getRequestFingerprint().equals(fingerprint)) {
                 throw new IdempotencyKeyConflictException();
@@ -55,10 +58,10 @@ public class IdempotencyService {
         TransferResponse response = transfers.create(userId, request, key, id);
         try {
             String body = mapper.writeValueAsString(response);
-            var record = records.findById(id).orElseThrow();
+            IdempotencyRecord record = records.findById(id).orElseThrow();
             record.complete(body, response.reference(), clock.instant());
             return response;
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalStateException(e);
         }
     }
