@@ -13,6 +13,7 @@ import com.wallettransfer.reconciliation.repository.ReconciliationRepairReposito
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.HexFormat;
 import java.util.Map;
@@ -25,9 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReconciliationRepairService {
 
     private static final String WALLET_POSITION_SQL = "SELECT w.available_balance, w.ledger_balance, "
-            + "COALESCE(SUM(CASE WHEN e.entry_type = 'CREDIT' THEN e.amount ELSE -e.amount END), 0) calculated, "
-            + "COALESCE((SELECT SUM(r.amount) FROM external_transfer_reservations r "
-            + "WHERE r.wallet_id = w.id AND r.status = 'ACTIVE'), 0) reserved "
+            + "COALESCE(SUM(CASE WHEN e.entry_type = 'CREDIT' THEN e.amount ELSE -e.amount END), 0) calculated "
             + "FROM wallets w JOIN ledger_accounts a ON a.wallet_id = w.id "
             + "LEFT JOIN journal_entries e ON e.ledger_account_id = a.id "
             + "WHERE w.id = ? GROUP BY w.id";
@@ -77,8 +76,7 @@ public class ReconciliationRepairService {
         UUID walletId = reconciliationCase.getResourceId();
         Map<String, Object> position = jdbc.queryForMap(WALLET_POSITION_SQL, walletId);
         BigDecimal calculatedLedger = decimal(position, "calculated");
-        BigDecimal activeReservations = decimal(position, "reserved");
-        BigDecimal expectedAvailable = calculatedLedger.subtract(activeReservations);
+        BigDecimal expectedAvailable = calculatedLedger;
         BigDecimal storedLedger = decimal(position, "ledger_balance");
         BigDecimal storedAvailable = decimal(position, "available_balance");
 
@@ -87,23 +85,24 @@ public class ReconciliationRepairService {
         }
 
         try {
-            String before = mapper.writeValueAsString(Map.of(
-                    "ledgerBalance", storedLedger,
-                    "availableBalance", storedAvailable));
-            String after = mapper.writeValueAsString(Map.of(
-                    "ledgerBalance", calculatedLedger,
-                    "availableBalance", expectedAvailable));
+            Map<String, BigDecimal> beforeSnapshot =
+                    Map.of("ledgerBalance", storedLedger, "availableBalance", storedAvailable);
+            String before = mapper.writeValueAsString(beforeSnapshot);
+            Map<String, BigDecimal> afterSnapshot =
+                    Map.of("ledgerBalance", calculatedLedger, "availableBalance", expectedAvailable);
+            String after = mapper.writeValueAsString(afterSnapshot);
 
+            Timestamp walletUpdatedAt = Timestamp.from(clock.instant());
             jdbc.update(
                     "UPDATE wallets SET ledger_balance = ?, available_balance = ?, "
                             + "version = version + 1, updated_at = ? WHERE id = ?",
                     calculatedLedger,
                     expectedAvailable,
-                    java.sql.Timestamp.from(clock.instant()),
+                    walletUpdatedAt,
                     walletId);
 
             UUID repairId = UUID.randomUUID();
-            repairs.save(new ReconciliationRepair(
+            ReconciliationRepair repair = new ReconciliationRepair(
                     repairId,
                     caseId,
                     idempotencyKey,
@@ -112,23 +111,23 @@ public class ReconciliationRepairService {
                     before,
                     after,
                     request.reason(),
-                    clock.instant()));
+                    clock.instant());
+            repairs.save(repair);
+            Timestamp caseResolvedAt = Timestamp.from(clock.instant());
             jdbc.update(
                     "UPDATE reconciliation_cases SET status = 'RESOLVED', resolved_at = ?, "
                             + "resolution_type = 'WALLET_PROJECTION_REBUILT', resolution_reason = ?, "
                             + "resolved_by = ?, version = version + 1 WHERE id = ?",
-                    java.sql.Timestamp.from(clock.instant()),
+                    caseResolvedAt,
                     request.reason(),
                     actor,
                     caseId);
-            audit.record(
-                    repairId,
-                    actor,
-                    walletId,
-                    mapper.writeValueAsString(Map.of(
-                            "before", mapper.readTree(before),
-                            "after", mapper.readTree(after),
-                            "reason", request.reason())));
+            var beforeDetails = mapper.readTree(before);
+            var afterDetails = mapper.readTree(after);
+            Map<String, Object> auditDetails =
+                    Map.of("before", beforeDetails, "after", afterDetails, "reason", request.reason());
+            String serializedDetails = mapper.writeValueAsString(auditDetails);
+            audit.record(repairId, actor, walletId, serializedDetails);
             return response(repairId, caseId);
         } catch (RuntimeException error) {
             throw error;
@@ -153,8 +152,9 @@ public class ReconciliationRepairService {
 
     private String fingerprint(UUID caseId, String reason) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest((caseId + "|" + reason).getBytes(StandardCharsets.UTF_8));
+            MessageDigest hasher = MessageDigest.getInstance("SHA-256");
+            byte[] input = (caseId + "|" + reason).getBytes(StandardCharsets.UTF_8);
+            byte[] digest = hasher.digest(input);
             return HexFormat.of().formatHex(digest);
         } catch (Exception error) {
             throw new IllegalStateException("Could not fingerprint reconciliation repair request", error);

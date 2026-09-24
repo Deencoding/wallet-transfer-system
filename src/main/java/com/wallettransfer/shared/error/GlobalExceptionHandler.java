@@ -87,7 +87,6 @@ public class GlobalExceptionHandler {
                     case USER_NOT_FOUND,
                             WALLET_NOT_FOUND,
                             TRANSFER_NOT_FOUND,
-                            EXTERNAL_TRANSFER_NOT_FOUND,
                             RECONCILIATION_CASE_NOT_FOUND,
                             LEDGER_ACCOUNT_NOT_FOUND -> HttpStatus.NOT_FOUND;
                     case EMAIL_ALREADY_REGISTERED,
@@ -107,15 +106,11 @@ public class GlobalExceptionHandler {
                             REVERSAL_ALREADY_EXISTS,
                             RECONCILIATION_ALREADY_RUNNING,
                             RECONCILIATION_REPAIR_CONFLICT,
-                            UNSAFE_RECONCILIATION_REPAIR,
-                            WEBHOOK_REPLAY_CONFLICT -> HttpStatus.CONFLICT;
+                            UNSAFE_RECONCILIATION_REPAIR -> HttpStatus.CONFLICT;
                     case SAME_WALLET_TRANSFER, INVALID_TRANSFER_AMOUNT, UNBALANCED_JOURNAL, INVALID_LEDGER_ENTRY ->
                         HttpStatus.UNPROCESSABLE_ENTITY;
-                    case AUTHENTICATION_FAILED,
-                            INVALID_CREDENTIALS,
-                            INVALID_TOKEN,
-                            REFRESH_TOKEN_REVOKED,
-                            INVALID_WEBHOOK_SIGNATURE -> HttpStatus.UNAUTHORIZED;
+                    case AUTHENTICATION_FAILED, INVALID_CREDENTIALS, INVALID_TOKEN, REFRESH_TOKEN_REVOKED ->
+                        HttpStatus.UNAUTHORIZED;
                     case INVALID_IDEMPOTENCY_KEY -> HttpStatus.BAD_REQUEST;
                 };
         return response(status, exception.code().name(), exception.getMessage());
@@ -128,7 +123,8 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ApiError> response(HttpStatus status, String code, String message) {
-        return ResponseEntity.status(status).body(new ApiError(code, message));
+        ApiError error = new ApiError(code, message);
+        return ResponseEntity.status(status).body(error);
     }
 
     private int fieldPriority(String field) {

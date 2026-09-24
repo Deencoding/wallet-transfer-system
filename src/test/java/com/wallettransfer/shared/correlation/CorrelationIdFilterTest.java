@@ -3,6 +3,7 @@ package com.wallettransfer.shared.correlation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -17,17 +18,20 @@ class CorrelationIdFilterTest {
         request.addHeader(CorrelationIdFilter.HEADER_NAME, "request-123");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, new MockFilterChain());
+        MockFilterChain filterChain = new MockFilterChain();
+        filter.doFilter(request, response, filterChain);
 
         assertThat(response.getHeader(CorrelationIdFilter.HEADER_NAME)).isEqualTo("request-123");
-        assertThat(org.slf4j.MDC.get(CorrelationIdFilter.MDC_KEY)).isNull();
+        assertThat(MDC.get(CorrelationIdFilter.MDC_KEY)).isNull();
     }
 
     @Test
     void generatesAnIdWhenTheHeaderIsMissing() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(new MockHttpServletRequest(), response, new MockFilterChain());
+        MockFilterChain filterChain = new MockFilterChain();
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        filter.doFilter(request, response, filterChain);
 
         assertThat(response.getHeader(CorrelationIdFilter.HEADER_NAME)).isNotBlank();
     }
@@ -38,7 +42,8 @@ class CorrelationIdFilterTest {
         request.addHeader(CorrelationIdFilter.HEADER_NAME, "unsafe value\r\nforged-header");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, new MockFilterChain());
+        MockFilterChain filterChain = new MockFilterChain();
+        filter.doFilter(request, response, filterChain);
 
         assertThat(response.getHeader(CorrelationIdFilter.HEADER_NAME))
                 .isNotEqualTo("unsafe value\r\nforged-header")

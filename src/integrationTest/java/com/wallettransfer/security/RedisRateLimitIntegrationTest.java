@@ -11,6 +11,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.awaitility.Awaitility;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -23,9 +24,10 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 class RedisRateLimitIntegrationTest {
 
+    private static final DockerImageName IMAGE = DockerImageName.parse("redis:7.4-alpine");
+
     @Container
-    static final GenericContainer<?> REDIS =
-            new GenericContainer<>(DockerImageName.parse("redis:7.4-alpine")).withExposedPorts(6379);
+    static final GenericContainer<?> REDIS = new GenericContainer<>(IMAGE).withExposedPorts(6379);
 
     @Test
     void concurrentConsumersCannotExceedTheAtomicAllowance() {
@@ -33,7 +35,8 @@ class RedisRateLimitIntegrationTest {
         var connectionFactory = new LettuceConnectionFactory(configuration);
         connectionFactory.afterPropertiesSet();
         try {
-            var repository = new RedisRateLimitRepository(new StringRedisTemplate(connectionFactory));
+            StringRedisTemplate stringRedisTemplate = new StringRedisTemplate(connectionFactory);
+            var repository = new RedisRateLimitRepository(stringRedisTemplate);
             var policy = new RateLimitPolicy("integration", 10, Duration.ofMinutes(1));
             String key = "concurrent:" + UUID.randomUUID();
             int attempts = 40;
@@ -58,9 +61,7 @@ class RedisRateLimitIntegrationTest {
                     });
                 }
                 start.countDown();
-                Awaitility.await()
-                        .atMost(Duration.ofSeconds(20))
-                        .untilAtomic(completed, org.hamcrest.Matchers.equalTo(attempts));
+                Awaitility.await().atMost(Duration.ofSeconds(20)).untilAtomic(completed, Matchers.equalTo(attempts));
             } finally {
                 executor.shutdownNow();
             }

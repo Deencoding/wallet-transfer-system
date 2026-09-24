@@ -26,5 +26,5 @@ public interface ConsumedEventRepository extends JpaRepository<ConsumedEvent, UU
             value =
                     "UPDATE consumed_events SET status='PROCESSED',processed_at=:now WHERE consumer_name=:consumer AND event_id=:eventId",
             nativeQuery = true)
-    int complete(@Param("consumer") String consumer, @Param("eventId") UUID eventId, @Param("now") Instant now);
+    void complete(@Param("consumer") String consumer, @Param("eventId") UUID eventId, @Param("now") Instant now);
 }

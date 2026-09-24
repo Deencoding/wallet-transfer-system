@@ -29,12 +29,7 @@ public class FinancialReconciliationService {
                 COALESCE(
                     SUM(CASE WHEN e.entry_type = 'CREDIT' THEN e.amount ELSE -e.amount END),
                     0
-                ) AS calculated_balance,
-                COALESCE((
-                    SELECT SUM(r.amount)
-                    FROM external_transfer_reservations r
-                    WHERE r.wallet_id = w.id AND r.status = 'ACTIVE'
-                ), 0) AS reserved_balance
+                ) AS calculated_balance
             FROM wallets w
             JOIN ledger_accounts a ON a.wallet_id = w.id
             LEFT JOIN journal_entries e ON e.ledger_account_id = a.id
@@ -56,20 +51,6 @@ public class FinancialReconciliationService {
                  WHERE r.original_transfer_id = t.id AND r.status = 'SUCCESSFUL'
                 ) AS reversal_journals
             FROM transfers t
-            """;
-
-    private static final String EXTERNAL_TRANSFER_RECONCILIATION_SQL =
-            """
-            SELECT
-                e.id,
-                e.status,
-                r.status AS reservation_status,
-                (SELECT COUNT(*)
-                 FROM journal_transactions j
-                 WHERE j.source_type = 'EXTERNAL_TRANSFER' AND j.source_reference = e.reference
-                ) AS journals
-            FROM external_transfers e
-            JOIN external_transfer_reservations r ON r.external_transfer_id = e.id
             """;
 
     private static final String UPSERT_CASE_SQL =
@@ -130,9 +111,8 @@ public class FinancialReconciliationService {
         ReconciliationRun run = new ReconciliationRun(UUID.randomUUID(), actorId, startedAt);
         runs.saveAndFlush(run);
 
-        ReconciliationSummary summary = reconcileWallets(run.getId(), startedAt)
-                .add(reconcileTransfers(run.getId(), startedAt))
-                .add(reconcileExternalTransfers(run.getId(), startedAt));
+        ReconciliationSummary summary =
+                reconcileWallets(run.getId(), startedAt).add(reconcileTransfers(run.getId(), startedAt));
 
         resolveCasesAbsentFrom(run.getId(), startedAt);
         run.complete(summary.scanned(), summary.discrepancies(), clock.instant());
@@ -155,15 +135,18 @@ public class FinancialReconciliationService {
                         resultSet.getObject("id", UUID.class),
                         resultSet.getBigDecimal("available_balance"),
                         resultSet.getBigDecimal("ledger_balance"),
-                        resultSet.getBigDecimal("calculated_balance"),
-                        resultSet.getBigDecimal("reserved_balance")));
+                        resultSet.getBigDecimal("calculated_balance")));
 
         long discrepancies = 0;
         for (WalletRow row : rows) {
-            BigDecimal expectedAvailable = row.calculatedBalance().subtract(row.reservedBalance());
+            BigDecimal expectedAvailable = row.calculatedBalance();
             boolean balancesDiffer = row.storedLedgerBalance().compareTo(row.calculatedBalance()) != 0
                     || row.availableBalance().compareTo(expectedAvailable) != 0;
             if (balancesDiffer) {
+                Map<String, BigDecimal> expectedBalances =
+                        Map.of("ledgerBalance", row.calculatedBalance(), "availableBalance", expectedAvailable);
+                Map<String, BigDecimal> actualBalances =
+                        Map.of("ledgerBalance", row.storedLedgerBalance(), "availableBalance", row.availableBalance());
                 upsertCase(
                         runId,
                         "WALLET_PROJECTION:" + row.walletId(),
@@ -171,10 +154,8 @@ public class FinancialReconciliationService {
                         "HIGH",
                         "WALLET",
                         row.walletId(),
-                        Map.of("ledgerBalance", row.calculatedBalance(), "availableBalance", expectedAvailable),
-                        Map.of(
-                                "ledgerBalance", row.storedLedgerBalance(),
-                                "availableBalance", row.availableBalance()),
+                        expectedBalances,
+                        actualBalances,
                         detectedAt);
                 discrepancies++;
             }
@@ -198,6 +179,12 @@ public class FinancialReconciliationService {
             boolean journalsDiffer = row.transferJournals() != expectedTransferJournals
                     || row.reversalJournals() != expectedReversalJournals;
             if (journalsDiffer) {
+                Map<String, Object> expectedJournals = Map.of(
+                        "status", row.status(),
+                        "transferJournals", expectedTransferJournals,
+                        "reversalJournals", expectedReversalJournals);
+                Map<String, Long> actualJournals =
+                        Map.of("transferJournals", row.transferJournals(), "reversalJournals", row.reversalJournals());
                 upsertCase(
                         runId,
                         "INTERNAL_TRANSFER_LEDGER:" + row.transferId(),
@@ -205,13 +192,8 @@ public class FinancialReconciliationService {
                         "CRITICAL",
                         "TRANSFER",
                         row.transferId(),
-                        Map.of(
-                                "status", row.status(),
-                                "transferJournals", expectedTransferJournals,
-                                "reversalJournals", expectedReversalJournals),
-                        Map.of(
-                                "transferJournals", row.transferJournals(),
-                                "reversalJournals", row.reversalJournals()),
+                        expectedJournals,
+                        actualJournals,
                         detectedAt);
                 discrepancies++;
             }
@@ -223,48 +205,9 @@ public class FinancialReconciliationService {
         return "SUCCESSFUL".equals(status) || "REVERSED".equals(status);
     }
 
-    private ReconciliationSummary reconcileExternalTransfers(UUID runId, Instant detectedAt) {
-        var rows = jdbc.query(
-                EXTERNAL_TRANSFER_RECONCILIATION_SQL,
-                (resultSet, rowNumber) -> new ExternalTransferRow(
-                        resultSet.getObject("id", UUID.class),
-                        resultSet.getString("status"),
-                        resultSet.getString("reservation_status"),
-                        resultSet.getLong("journals")));
-
-        long discrepancies = 0;
-        for (ExternalTransferRow row : rows) {
-            String expectedReservationStatus = expectedReservationStatus(row.transferStatus());
-            long expectedJournals = "SUCCESSFUL".equals(row.transferStatus()) ? 1 : 0;
-            boolean stateDiffers =
-                    !row.reservationStatus().equals(expectedReservationStatus) || row.journals() != expectedJournals;
-            if (stateDiffers) {
-                upsertCase(
-                        runId,
-                        "EXTERNAL_TRANSFER_STATE:" + row.transferId(),
-                        "EXTERNAL_TRANSFER_STATE",
-                        "CRITICAL",
-                        "EXTERNAL_TRANSFER",
-                        row.transferId(),
-                        Map.of("reservation", expectedReservationStatus, "journals", expectedJournals),
-                        Map.of("reservation", row.reservationStatus(), "journals", row.journals()),
-                        detectedAt);
-                discrepancies++;
-            }
-        }
-        return new ReconciliationSummary(rows.size(), discrepancies);
-    }
-
-    private String expectedReservationStatus(String transferStatus) {
-        return switch (transferStatus) {
-            case "SUCCESSFUL" -> "SETTLED";
-            case "FAILED" -> "RELEASED";
-            default -> "ACTIVE";
-        };
-    }
-
     private void resolveCasesAbsentFrom(UUID runId, Instant resolvedAt) {
-        jdbc.update(RESOLVE_STALE_CASES_SQL, Timestamp.from(resolvedAt), runId);
+        Timestamp resolvedTimestamp = Timestamp.from(resolvedAt);
+        jdbc.update(RESOLVE_STALE_CASES_SQL, resolvedTimestamp, runId);
     }
 
     private void recordMetrics(ReconciliationSummary summary) {
@@ -284,17 +227,20 @@ public class FinancialReconciliationService {
             Instant detectedAt) {
         try {
             Timestamp timestamp = Timestamp.from(detectedAt);
+            UUID caseId = UUID.randomUUID();
+            String expectedJson = mapper.writeValueAsString(expected);
+            String actualJson = mapper.writeValueAsString(actual);
             jdbc.update(
                     UPSERT_CASE_SQL,
-                    UUID.randomUUID(),
+                    caseId,
                     key,
                     runId,
                     category,
                     severity,
                     resourceType,
                     resourceId,
-                    mapper.writeValueAsString(expected),
-                    mapper.writeValueAsString(actual),
+                    expectedJson,
+                    actualJson,
                     timestamp,
                     timestamp);
         } catch (Exception exception) {
@@ -303,16 +249,9 @@ public class FinancialReconciliationService {
     }
 
     private record WalletRow(
-            UUID walletId,
-            BigDecimal availableBalance,
-            BigDecimal storedLedgerBalance,
-            BigDecimal calculatedBalance,
-            BigDecimal reservedBalance) {}
+            UUID walletId, BigDecimal availableBalance, BigDecimal storedLedgerBalance, BigDecimal calculatedBalance) {}
 
     private record TransferRow(UUID transferId, String status, long transferJournals, long reversalJournals) {}
-
-    private record ExternalTransferRow(
-            UUID transferId, String transferStatus, String reservationStatus, long journals) {}
 
     private record ReconciliationSummary(long scanned, long discrepancies) {
         private ReconciliationSummary add(ReconciliationSummary other) {

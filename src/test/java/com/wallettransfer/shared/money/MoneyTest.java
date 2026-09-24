@@ -10,7 +10,8 @@ class MoneyTest {
 
     @Test
     void normalizesAnExactAmountToTheCurrencyScale() {
-        Money money = new Money(new BigDecimal("100"), Currency.NGN);
+        BigDecimal inputAmount = new BigDecimal("100");
+        Money money = new Money(inputAmount, Currency.NGN);
 
         assertThat(money.amount()).isEqualByComparingTo("100.00");
         assertThat(money.amount().scale()).isEqualTo(2);
@@ -18,7 +19,8 @@ class MoneyTest {
 
     @Test
     void rejectsImplicitRounding() {
-        assertThatThrownBy(() -> new Money(new BigDecimal("10.001"), Currency.NGN))
+        BigDecimal inputAmount = new BigDecimal("10.001");
+        assertThatThrownBy(() -> new Money(inputAmount, Currency.NGN))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("currency scale");
     }

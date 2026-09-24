@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "users")
@@ -96,7 +97,7 @@ public class User {
     }
 
     public Set<RoleName> getRoleNames() {
-        return roles.stream().map(Role::getName).collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return roles.stream().map(Role::getName).collect(Collectors.toUnmodifiableSet());
     }
 
     public boolean canAuthenticate() {

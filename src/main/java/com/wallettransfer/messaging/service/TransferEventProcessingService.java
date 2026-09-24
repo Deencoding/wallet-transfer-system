@@ -5,6 +5,7 @@ import com.wallettransfer.inbox.repository.ConsumedEventRepository;
 import com.wallettransfer.messaging.dto.TransferCompletedMessage;
 import com.wallettransfer.messaging.exception.InvalidEventException;
 import com.wallettransfer.notifications.service.NotificationService;
+import com.wallettransfer.shared.money.Currency;
 import com.wallettransfer.wallets.service.WalletService;
 import java.math.BigDecimal;
 import java.time.*;
@@ -87,7 +88,7 @@ public class TransferEventProcessingService {
             if (new BigDecimal(message.amount()).signum() <= 0) {
                 throw new NumberFormatException("non-positive");
             }
-            com.wallettransfer.shared.money.Currency.valueOf(message.currency());
+            Currency.valueOf(message.currency());
         } catch (IllegalArgumentException exception) {
             throw new InvalidEventException("Transfer money fields are invalid", exception);
         }

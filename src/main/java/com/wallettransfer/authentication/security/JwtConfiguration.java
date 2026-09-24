@@ -7,6 +7,8 @@ import com.nimbusds.jose.proc.SecurityContext;
 import java.security.KeyPair;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.time.Duration;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +16,7 @@ import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -29,7 +32,9 @@ public class JwtConfiguration {
         RSAKey key = new RSAKey.Builder((RSAPublicKey) pair.getPublic())
                 .privateKey((RSAPrivateKey) pair.getPrivate())
                 .build();
-        return new NimbusJwtEncoder(new ImmutableJWKSet<SecurityContext>(new JWKSet(key)));
+        JWKSet keySet = new JWKSet(key);
+        ImmutableJWKSet<SecurityContext> keySource = new ImmutableJWKSet<>(keySet);
+        return new NimbusJwtEncoder(keySource);
     }
 
     @Bean
@@ -44,24 +49,29 @@ public class JwtConfiguration {
 
     private JwtDecoder decoder(RSAPublicKey key, JwtProperties properties, String audience, String type) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(key)
-                .signatureAlgorithm(org.springframework.security.oauth2.jose.jws.SignatureAlgorithm.RS256)
+                .signatureAlgorithm(SignatureAlgorithm.RS256)
                 .build();
-        OAuth2TokenValidator<Jwt> purpose = jwt -> jwt.getAudience().contains(audience)
-                        && type.equals(jwt.getClaimAsString("token_type"))
-                        && validRequiredClaims(jwt)
-                ? OAuth2TokenValidatorResult.success()
-                : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Invalid token purpose", null));
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                new JwtTimestampValidator(java.time.Duration.ofSeconds(30)),
-                new JwtIssuerValidator(properties.issuer()),
-                purpose));
+        OAuth2TokenValidator<Jwt> purpose = jwt -> {
+            if (jwt.getAudience().contains(audience)
+                    && type.equals(jwt.getClaimAsString("token_type"))
+                    && validRequiredClaims(jwt)) {
+                return OAuth2TokenValidatorResult.success();
+            }
+            OAuth2Error error = new OAuth2Error("invalid_token", "Invalid token purpose", null);
+            return OAuth2TokenValidatorResult.failure(error);
+        };
+        JwtTimestampValidator timestampValidator = new JwtTimestampValidator(Duration.ofSeconds(30));
+        JwtIssuerValidator issuerValidator = new JwtIssuerValidator(properties.issuer());
+        DelegatingOAuth2TokenValidator<Jwt> validator =
+                new DelegatingOAuth2TokenValidator<>(timestampValidator, issuerValidator, purpose);
+        decoder.setJwtValidator(validator);
         return decoder;
     }
 
     private boolean validRequiredClaims(Jwt jwt) {
         try {
-            java.util.UUID.fromString(jwt.getSubject());
-            java.util.UUID.fromString(jwt.getId());
+            UUID.fromString(jwt.getSubject());
+            UUID.fromString(jwt.getId());
             return jwt.getIssuedAt() != null
                     && jwt.getExpiresAt() != null
                     && !jwt.getAudience().isEmpty();

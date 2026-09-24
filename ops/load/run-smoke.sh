@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 set -eu
-WALLET_ENV_FILE="${WALLET_ENV_FILE:-env.local}"
+WALLET_ENV_FILE="${WALLET_ENV_FILE:-.env}"
 
 docker compose --env-file "$WALLET_ENV_FILE" -p wallet-load -f compose.yml -f ops/load/compose.load.yml up -d --build app prometheus grafana
 docker compose --env-file "$WALLET_ENV_FILE" -p wallet-load -f compose.yml -f ops/load/compose.load.yml exec -T postgres \

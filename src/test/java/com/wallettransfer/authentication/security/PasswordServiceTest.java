@@ -17,7 +17,8 @@ class PasswordServiceTest {
 
     @Test
     void rejectsPasswordsBeyondBcryptsUtf8Limit() {
-        assertThatThrownBy(() -> passwords.hash("€".repeat(25)))
+        String oversizedPassword = "€".repeat(25);
+        assertThatThrownBy(() -> passwords.hash(oversizedPassword))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("72 UTF-8 bytes");
     }
@@ -25,7 +26,7 @@ class PasswordServiceTest {
     @Test
     void rejectsControlCharacters() {
         assertThatThrownBy(() -> passwords.hash("valid length\npassword")).isInstanceOf(IllegalArgumentException.class);
-        assertThat(passwords.matches("valid length\npassword", passwords.hash("correct horse battery staple")))
-                .isFalse();
+        String passwordHash = passwords.hash("correct horse battery staple");
+        assertThat(passwords.matches("valid length\npassword", passwordHash)).isFalse();
     }
 }

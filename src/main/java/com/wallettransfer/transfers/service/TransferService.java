@@ -7,11 +7,15 @@ import com.wallettransfer.transfers.dto.CreateTransferRequest;
 import com.wallettransfer.transfers.dto.TransferResponse;
 import com.wallettransfer.transfers.event.TransferCompletedEvent;
 import com.wallettransfer.transfers.exception.TransferNotFoundException;
+import com.wallettransfer.transfers.exception.WalletBusyException;
 import com.wallettransfer.transfers.model.Transfer;
 import com.wallettransfer.transfers.repository.TransferRepository;
+import com.wallettransfer.wallets.dto.WalletMovement;
+import com.wallettransfer.wallets.dto.WalletResponse;
 import com.wallettransfer.wallets.service.WalletService;
 import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.data.domain.Page;
@@ -55,15 +59,15 @@ public class TransferService {
             UUID ownerId, CreateTransferRequest request, String idempotencyKey, UUID idempotencyRecordId) {
         Timer.Sample sample = metrics.start();
         try {
-            var money = new Money(request.amount(), request.currency());
+            Money money = new Money(request.amount(), request.currency());
             if (money.amount().signum() <= 0) {
                 throw new IllegalArgumentException("amount must be positive");
             }
-            var senderId = wallets.getWalletId(ownerId, money.currency());
-            var now = clock.instant();
+            UUID senderId = wallets.getWalletId(ownerId, money.currency());
+            Instant now = clock.instant();
             String reference =
                     "TRF-" + UUID.randomUUID().toString().replace("-", "").toUpperCase();
-            var transfer = new Transfer(
+            Transfer transfer = new Transfer(
                     UUID.randomUUID(),
                     reference,
                     senderId,
@@ -76,7 +80,7 @@ public class TransferService {
                     now);
             transfer.start(now);
             transfers.save(transfer);
-            var movement = wallets.moveFunds(ownerId, request.receiverWalletId(), money);
+            WalletMovement movement = wallets.moveFunds(ownerId, request.receiverWalletId(), money);
             ledger.postTransfer(
                     reference,
                     movement.senderWalletId(),
@@ -86,24 +90,21 @@ public class TransferService {
                     request.description());
             transfer.succeed(clock.instant());
             transfers.saveAndFlush(transfer);
-            outbox.append(
-                    "TRANSFER",
+            String eventAmount = money.amount().toPlainString();
+            TransferCompletedEvent event = new TransferCompletedEvent(
                     transfer.getId(),
-                    "TransferCompleted",
-                    1,
-                    new TransferCompletedEvent(
-                            transfer.getId(),
-                            reference,
-                            movement.senderWalletId(),
-                            movement.receiverWalletId(),
-                            money.amount().toPlainString(),
-                            money.currency().name(),
-                            transfer.getCompletedAt()));
+                    reference,
+                    movement.senderWalletId(),
+                    movement.receiverWalletId(),
+                    eventAmount,
+                    money.currency().name(),
+                    transfer.getCompletedAt());
+            outbox.append("TRANSFER", transfer.getId(), "TransferCompleted", 1, event);
             metrics.successfulAfterCommit(sample);
             return TransferResponse.from(transfer);
         } catch (PessimisticLockingFailureException exception) {
             metrics.failed(sample);
-            throw new com.wallettransfer.transfers.exception.WalletBusyException();
+            throw new WalletBusyException();
         } catch (RuntimeException exception) {
             metrics.failed(sample);
             throw exception;
@@ -112,23 +113,26 @@ public class TransferService {
 
     @Transactional(readOnly = true)
     public TransferResponse get(UUID ownerId, String reference) {
-        var wallet = wallets.getMyWallet(ownerId);
-        return TransferResponse.from(transfers
+        WalletResponse wallet = wallets.getMyWallet(ownerId);
+        Transfer transfer = transfers
                 .findByReferenceAndSenderWalletIdOrReferenceAndReceiverWalletId(
                         reference, wallet.id(), reference, wallet.id())
-                .orElseThrow(TransferNotFoundException::new));
+                .orElseThrow(TransferNotFoundException::new);
+        return TransferResponse.from(transfer);
     }
 
     @Transactional(readOnly = true)
     public Page<TransferResponse> list(UUID ownerId, int page, int size) {
         var wallet = wallets.getMyWallet(ownerId);
-        var pageable = PageRequest.of(
-                Math.max(page, 0),
-                Math.min(Math.max(size, 1), 100),
-                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
-        return transfers
-                .findBySenderWalletIdOrReceiverWalletId(wallet.id(), wallet.id(), pageable)
-                .map(TransferResponse::from);
+        int pageNumber = Math.max(page, 0);
+        int pageSize = Math.clamp(size, 1, 100);
+        Sort.Order createdAtOrder = Sort.Order.desc("createdAt");
+        Sort.Order idOrder = Sort.Order.desc("id");
+        Sort sort = Sort.by(createdAtOrder, idOrder);
+        var pageable = PageRequest.of(pageNumber, pageSize, sort);
+        Page<Transfer> transferPage =
+                transfers.findBySenderWalletIdOrReceiverWalletId(wallet.id(), wallet.id(), pageable);
+        return transferPage.map(TransferResponse::from);
     }
 
     @Transactional

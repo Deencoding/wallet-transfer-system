@@ -25,9 +25,8 @@ public class RequestSizeFilter extends OncePerRequestFilter {
         if (request.getContentLengthLong() > MAX_API_BODY_BYTES) {
             response.setStatus(413);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            mapper.writeValue(
-                    response.getOutputStream(),
-                    new ApiError("REQUEST_TOO_LARGE", "Request body exceeds the permitted size"));
+            ApiError error = new ApiError("REQUEST_TOO_LARGE", "Request body exceeds the permitted size");
+            mapper.writeValue(response.getOutputStream(), error);
             return;
         }
         filterChain.doFilter(request, response);

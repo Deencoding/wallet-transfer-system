@@ -1,9 +1,9 @@
 package com.wallettransfer.outbox.service;
 
-import com.wallettransfer.outbox.configuration.OutboxProperties;
 import com.wallettransfer.outbox.model.OutboxEvent;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -16,17 +16,14 @@ import org.springframework.stereotype.Service;
 public class OutboxPublisher {
     private final OutboxClaimService claims;
     private final KafkaTemplate<String, String> kafka;
-    private final OutboxProperties properties;
     private final MeterRegistry metrics;
 
     public OutboxPublisher(
             OutboxClaimService claims,
             KafkaTemplate<String, String> kafka,
-            OutboxProperties properties,
             MeterRegistry metrics) {
         this.claims = claims;
         this.kafka = kafka;
-        this.properties = properties;
         this.metrics = metrics;
     }
 
@@ -38,20 +35,18 @@ public class OutboxPublisher {
     private void publish(OutboxEvent event) {
         Timer.Sample sample = Timer.start(metrics);
         try {
-            var record = new ProducerRecord<String, String>(
+            ProducerRecord<String, String> record = new ProducerRecord<>(
                     event.getDestinationTopic(), event.getAggregateId().toString(), event.getPayload());
-            record.headers().add("eventId", event.getId().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            record.headers().add("eventType", event.getEventType().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            record.headers()
-                    .add(
-                            "eventVersion",
-                            Integer.toString(event.getEventVersion())
-                                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            if (event.getCorrelationId() != null)
-                record.headers()
-                        .add(
-                                "correlationId",
-                                event.getCorrelationId().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] eventIdHeader = event.getId().toString().getBytes(StandardCharsets.UTF_8);
+            record.headers().add("eventId", eventIdHeader);
+            byte[] eventTypeHeader = event.getEventType().getBytes(StandardCharsets.UTF_8);
+            record.headers().add("eventType", eventTypeHeader);
+            byte[] versionHeader = Integer.toString(event.getEventVersion()).getBytes(StandardCharsets.UTF_8);
+            record.headers().add("eventVersion", versionHeader);
+            if (event.getCorrelationId() != null) {
+                byte[] correlationHeader = event.getCorrelationId().getBytes(StandardCharsets.UTF_8);
+                record.headers().add("correlationId", correlationHeader);
+            }
             kafka.send(record).get(10, TimeUnit.SECONDS);
             claims.published(event.getId());
             record(sample, "published");
@@ -63,6 +58,7 @@ public class OutboxPublisher {
 
     private void record(Timer.Sample sample, String outcome) {
         metrics.counter("wallet.outbox.events", "outcome", outcome).increment();
-        sample.stop(metrics.timer("wallet.outbox.publish.duration", "outcome", outcome));
+        Timer timer = metrics.timer("wallet.outbox.publish.duration", "outcome", outcome);
+        sample.stop(timer);
     }
 }

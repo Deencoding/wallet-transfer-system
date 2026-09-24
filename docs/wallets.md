@@ -1,6 +1,6 @@
 # Wallets
 
-Every customer owns exactly one NGN wallet. Registration hashes the password before starting the database transaction, then `CustomerRegistrationService` creates the user and wallet atomically through `UserService` and `WalletService`. PostgreSQL uniqueness on `(owner_id, currency)` prevents duplicate wallets, including under concurrent requests. Migration V3 backfills zero-balance wallets for customers created before Phase 3.
+Every customer owns exactly one NGN wallet. Registration hashes the password before starting the database transaction, then `CustomerRegistrationService` creates the user and wallet atomically through `UserService` and `WalletService`. PostgreSQL uniqueness on `(owner_id, currency)` prevents duplicate wallets, including under concurrent requests.
 
 Wallets start `ACTIVE` with `available_balance = ledger_balance = 0.00`. PostgreSQL rejects negative balances and requires available balance not to exceed ledger balance. There is intentionally no funding or balance-adjustment endpoint; Phase 4 introduces the authoritative ledger.
 

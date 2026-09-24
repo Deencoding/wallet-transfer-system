@@ -21,7 +21,7 @@ Run:
 VUS=25 DURATION=5m ./ops/load/run-baseline.sh
 ```
 
-Every run ends with PostgreSQL checks for non-negative balances, balanced journals, projection agreement, completed-transfer journals, reversal uniqueness, reservation state, and idempotent effects.
+Every run ends with PostgreSQL checks for non-negative balances, balanced journals, projection agreement, completed-transfer journals, reversal uniqueness, and idempotent effects.
 
 ## Reporting policy
 

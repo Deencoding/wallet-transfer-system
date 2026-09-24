@@ -31,7 +31,8 @@ public class ReconciliationController {
 
     @PostMapping("/runs")
     public ResponseEntity<ReconciliationRunResponse> run(@AuthenticationPrincipal Jwt jwt) {
-        ReconciliationRunResponse response = financial.run(UUID.fromString(jwt.getSubject()));
+        UUID actorId = UUID.fromString(jwt.getSubject());
+        ReconciliationRunResponse response = financial.run(actorId);
         URI location = URI.create("/api/v1/admin/reconciliation/runs/" + response.id());
         return ResponseEntity.created(location).body(response);
     }
@@ -59,8 +60,8 @@ public class ReconciliationController {
             @PathVariable UUID id,
             @RequestHeader("Idempotency-Key") String key,
             @Valid @RequestBody RepairWalletProjectionRequest request) {
-        ReconciliationRepairResponse response =
-                repairs.repairWallet(UUID.fromString(jwt.getSubject()), id, key, request);
+        UUID actorId = UUID.fromString(jwt.getSubject());
+        ReconciliationRepairResponse response = repairs.repairWallet(actorId, id, key, request);
         URI location = URI.create("/api/v1/admin/reconciliation/cases/" + response.caseId());
         return ResponseEntity.created(location).body(response);
     }

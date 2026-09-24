@@ -34,11 +34,14 @@ public class TransferCompletedConsumer {
             correlation = UUID.randomUUID().toString();
         }
         try (MDC.MDCCloseable ignored = MDC.putCloseable(CorrelationIdFilter.MDC_KEY, correlation)) {
-            UUID eventId = UUID.fromString(header(record, "eventId"));
+            String eventIdHeader = header(record, "eventId");
+            UUID eventId = UUID.fromString(eventIdHeader);
             String type = header(record, "eventType");
-            int version = Integer.parseInt(header(record, "eventVersion"));
+            String versionHeader = header(record, "eventVersion");
+            int version = Integer.parseInt(versionHeader);
             var message = mapper.readValue(record.value(), TransferCompletedMessage.class);
-            processing.process(eventId, type, version, UUID.fromString(record.key()), correlation, message);
+            UUID aggregateId = UUID.fromString(record.key());
+            processing.process(eventId, type, version, aggregateId, correlation, message);
             acknowledgment.acknowledge();
         } catch (InvalidEventException exception) {
             throw exception;

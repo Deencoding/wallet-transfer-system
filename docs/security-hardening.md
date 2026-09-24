@@ -22,21 +22,14 @@ The API is stateless, uses bearer authentication, and does not use authenticatio
 
 Swagger and OpenAPI are disabled by default in production. Actuator remains on the isolated management port described in the observability guide.
 
-## Webhooks
-
-Provider webhooks require HMAC-SHA256 over the exact timestamp and raw body, a 64-character hexadecimal signature, and a timestamp inside the configured tolerance. Provider names, event IDs, payload status, references, failure reason, and body size are bounded.
-
-An identical duplicate event is accepted idempotently. Reusing an event ID with a different payload hash returns a conflict and creates a sanitized security event.
-
 ## Security events and privacy
 
-`security_events` is append-only at the database level. It records authentication outcomes, refresh-token reuse, logout, throttling, and webhook rejection. Principals and client addresses are HMAC-pseudonymized with `SECURITY_AUDIT_PEPPER`. Raw passwords, emails, IP addresses, JWTs, refresh tokens, signatures, request bodies, and idempotency keys are not stored.
+`security_events` is append-only at the database level. It records authentication outcomes, refresh-token reuse, logout, and throttling. Principals and client addresses are HMAC-pseudonymized with `SECURITY_AUDIT_PEPPER`. Raw passwords, emails, IP addresses, JWTs, refresh tokens, signatures, request bodies, and idempotency keys are not stored.
 
-Production requires external values for JWT keys, database credentials, provider webhook secret, and the audit pepper. Placeholder values cause startup failure.
+Production requires external values for JWT keys, database credentials, and the audit pepper. Placeholder values cause startup failure.
 
 ## Residual risks
 
 - Declared body-size enforcement relies on `Content-Length`; the reverse proxy must also enforce request limits for chunked traffic.
-- The in-process simulator is for local testing and is disabled in production.
 - Rate limiting reduces abuse but does not replace edge DDoS protection or a web application firewall.
 - Security events require an environment-specific retention and access-control policy.

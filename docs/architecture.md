@@ -7,7 +7,6 @@ Clients -> Spring Security/JWT -> feature controllers -> feature services
                                                     -> PostgreSQL transaction
                                                     -> Redis rate limits
 PostgreSQL outbox -> background publisher -> Kafka -> idempotent consumers
-External provider -> signed webhook/status query -> reconciliation
 Actuator -> Prometheus -> Grafana
 ```
 
@@ -22,20 +21,18 @@ Actuator -> Prometheus -> Grafana
 | Idempotency | Durable request claim, fingerprint and response replay |
 | Outbox/messaging | Atomic event creation, Kafka publication and inbox deduplication |
 | Notifications/audit | Idempotent event-derived projections and sensitive-action records |
-| External transfers/providers | Reservations, provider calls, webhooks and uncertain outcomes |
 | Reversals | Compensating business and ledger transactions |
-| Reconciliation | Provider polling and financial control cases/repairs |
+| Reconciliation | Financial control cases and repairs |
 | Shared security/observability | Rate limiting, security events, correlation, health and metrics |
 
 ## Consistency boundaries
 
-PostgreSQL is the consistency boundary for internal money movement. One transaction locks wallets, changes projections, appends a balanced journal, completes the transfer, stores the idempotent response, and inserts the outbox event. Kafka, Redis, Prometheus, and external providers are outside that transaction.
+PostgreSQL is the consistency boundary for internal money movement. One transaction locks wallets, changes projections, appends a balanced journal, completes the transfer, stores the idempotent response, and inserts the outbox event. Kafka, Redis, and Prometheus are outside that transaction.
 
 The ledger is authoritative. Wallet balances are low-latency projections checked by financial reconciliation. Corrections append reversal entries; ledger history is never edited.
 
 Kafka delivery is at least once. Consumers use durable event IDs to make their effects idempotent. The system does not claim end-to-end exactly-once delivery.
 
-External-provider calls do not occur while wallet locks are held. Funds are reserved first. A timeout after possible provider success creates an uncertain outcome that is resolved by status query, webhook, and reconciliation rather than blind retry.
 
 ## Extraction path
 

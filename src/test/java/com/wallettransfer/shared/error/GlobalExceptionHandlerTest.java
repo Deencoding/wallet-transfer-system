@@ -31,7 +31,8 @@ class GlobalExceptionHandlerTest {
     @Test
     void mapsEveryDomainErrorCodeToItsPublicHttpContract() {
         for (DomainErrorCode code : DomainErrorCode.values()) {
-            var response = handler.domain(new TestDomainException(code), request);
+            TestDomainException testDomainException = new TestDomainException(code);
+            var response = handler.domain(testDomainException, request);
 
             assertThat(response.getStatusCode()).as(code.name()).isEqualTo(expectedStatus(code));
             assertThat(response.getBody()).isNotNull();
@@ -42,15 +43,18 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void returnsAUsefulButNonEnumeratingCredentialFailure() {
-        var response = handler.domain(new InvalidCredentialsException(), request);
+        InvalidCredentialsException invalidCredentialsException = new InvalidCredentialsException();
+        var response = handler.domain(invalidCredentialsException, request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(response.getBody()).isEqualTo(new ApiError("INVALID_CREDENTIALS", "Email or password is incorrect"));
+        ApiError apiError = new ApiError("INVALID_CREDENTIALS", "Email or password is incorrect");
+        assertThat(response.getBody()).isEqualTo(apiError);
     }
 
     @Test
     void returnsOnlyTheEmailErrorWhenEmailAndPasswordAreInvalid() throws Exception {
-        var mvc = MockMvcBuilders.standaloneSetup(new ValidationController())
+        ValidationController controller = new ValidationController();
+        var mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(handler)
                 .build();
 
@@ -72,7 +76,8 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void returnsThePasswordErrorAfterEmailIsValid() throws Exception {
-        var mvc = MockMvcBuilders.standaloneSetup(new ValidationController())
+        ValidationController controller = new ValidationController();
+        var mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(handler)
                 .build();
 
@@ -95,7 +100,8 @@ class GlobalExceptionHandlerTest {
     @ParameterizedTest
     @MethodSource("loginValidationScenarios")
     void coversLoginValidationScenarios(String body, String expectedMessage) throws Exception {
-        var mvc = MockMvcBuilders.standaloneSetup(new ValidationController())
+        ValidationController controller = new ValidationController();
+        var mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(handler)
                 .build();
 
@@ -124,7 +130,6 @@ class GlobalExceptionHandlerTest {
             case USER_NOT_FOUND,
                     WALLET_NOT_FOUND,
                     TRANSFER_NOT_FOUND,
-                    EXTERNAL_TRANSFER_NOT_FOUND,
                     RECONCILIATION_CASE_NOT_FOUND,
                     LEDGER_ACCOUNT_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case EMAIL_ALREADY_REGISTERED,
@@ -144,15 +149,11 @@ class GlobalExceptionHandlerTest {
                     REVERSAL_ALREADY_EXISTS,
                     RECONCILIATION_ALREADY_RUNNING,
                     RECONCILIATION_REPAIR_CONFLICT,
-                    UNSAFE_RECONCILIATION_REPAIR,
-                    WEBHOOK_REPLAY_CONFLICT -> HttpStatus.CONFLICT;
+                    UNSAFE_RECONCILIATION_REPAIR -> HttpStatus.CONFLICT;
             case SAME_WALLET_TRANSFER, INVALID_TRANSFER_AMOUNT, UNBALANCED_JOURNAL, INVALID_LEDGER_ENTRY ->
                 HttpStatus.UNPROCESSABLE_ENTITY;
-            case AUTHENTICATION_FAILED,
-                    INVALID_CREDENTIALS,
-                    INVALID_TOKEN,
-                    REFRESH_TOKEN_REVOKED,
-                    INVALID_WEBHOOK_SIGNATURE -> HttpStatus.UNAUTHORIZED;
+            case AUTHENTICATION_FAILED, INVALID_CREDENTIALS, INVALID_TOKEN, REFRESH_TOKEN_REVOKED ->
+                HttpStatus.UNAUTHORIZED;
             case INVALID_IDEMPOTENCY_KEY -> HttpStatus.BAD_REQUEST;
         };
     }

@@ -18,8 +18,10 @@ class RateLimitServiceTest {
     @Test
     void failsClosedWhenRedisIsUnavailable() {
         RedisRateLimitRepository repository = mock(RedisRateLimitRepository.class);
-        when(repository.consume("key", policy)).thenThrow(new IllegalStateException("unavailable"));
-        var service = new RateLimitService(repository, new SecurityHardeningProperties(true, true));
+        IllegalStateException redisFailure = new IllegalStateException("unavailable");
+        when(repository.consume("key", policy)).thenThrow(redisFailure);
+        SecurityHardeningProperties properties = new SecurityHardeningProperties(true, true);
+        var service = new RateLimitService(repository, properties);
 
         assertThat(service.consume("key", policy).allowed()).isFalse();
     }
@@ -27,8 +29,10 @@ class RateLimitServiceTest {
     @Test
     void canFailOpenOnlyWhenExplicitlyConfigured() {
         RedisRateLimitRepository repository = mock(RedisRateLimitRepository.class);
-        when(repository.consume("key", policy)).thenThrow(new IllegalStateException("unavailable"));
-        var service = new RateLimitService(repository, new SecurityHardeningProperties(true, false));
+        IllegalStateException redisFailure = new IllegalStateException("unavailable");
+        when(repository.consume("key", policy)).thenThrow(redisFailure);
+        SecurityHardeningProperties properties = new SecurityHardeningProperties(true, false);
+        var service = new RateLimitService(repository, properties);
 
         assertThat(service.consume("key", policy).allowed()).isTrue();
     }

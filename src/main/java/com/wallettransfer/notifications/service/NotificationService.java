@@ -25,7 +25,7 @@ public class NotificationService {
             String amount,
             String currency) {
         Instant now = clock.instant();
-        repository.save(new Notification(
+        Notification senderNotification = new Notification(
                 UUID.randomUUID(),
                 eventId,
                 senderId,
@@ -33,8 +33,9 @@ public class NotificationService {
                 NotificationType.TRANSFER_SENT,
                 "Transfer successful",
                 "Transfer " + reference + " of " + currency + " " + amount + " was sent successfully",
-                now));
-        repository.save(new Notification(
+                now);
+        repository.save(senderNotification);
+        Notification receiverNotification = new Notification(
                 UUID.randomUUID(),
                 eventId,
                 receiverId,
@@ -42,6 +43,7 @@ public class NotificationService {
                 NotificationType.TRANSFER_RECEIVED,
                 "Transfer received",
                 "Transfer " + reference + " of " + currency + " " + amount + " was received",
-                now));
+                now);
+        repository.save(receiverNotification);
     }
 }

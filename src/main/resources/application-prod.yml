@@ -22,9 +22,6 @@ application:
     jwt:
       public-key: ${JWT_PUBLIC_KEY}
       private-key: ${JWT_PRIVATE_KEY}
-  provider:
-    simulator-enabled: false
-    webhook-secret: ${PROVIDER_WEBHOOK_SECRET}
 springdoc:
   api-docs:
     enabled: ${OPENAPI_ENABLED:false}

@@ -5,6 +5,7 @@ import com.wallettransfer.audit.model.*;
 import com.wallettransfer.audit.repository.AuditRecordRepository;
 import java.time.*;
 import java.util.*;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -21,19 +22,20 @@ public class ReversalAuditService {
 
     public void record(UUID reversalId, UUID actorId, UUID transferId, String transferReference, String reason) {
         try {
-            String details =
-                    mapper.writeValueAsString(Map.of("originalTransferReference", transferReference, "reason", reason));
-            records.save(new AuditRecord(
+            Map<String, String> auditDetails = Map.of("originalTransferReference", transferReference, "reason", reason);
+            String details = mapper.writeValueAsString(auditDetails);
+            AuditRecord record = new AuditRecord(
                     UUID.randomUUID(),
                     reversalId,
                     actorId,
                     AuditAction.TRANSFER_REVERSED,
                     "TRANSFER",
                     transferId,
-                    org.slf4j.MDC.get("correlationId"),
+                    MDC.get("correlationId"),
                     details,
                     clock.instant(),
-                    clock.instant()));
+                    clock.instant());
+            records.save(record);
         } catch (Exception error) {
             throw new IllegalStateException("Could not create reversal audit record", error);
         }

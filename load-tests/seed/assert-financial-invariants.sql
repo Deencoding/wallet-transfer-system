@@ -19,15 +19,13 @@ BEGIN
 
   SELECT count(*) INTO violations FROM (
     SELECT w.id,w.ledger_balance,w.available_balance,
-      COALESCE(sum(CASE WHEN e.entry_type='CREDIT' THEN e.amount ELSE -e.amount END),0) calculated,
-      COALESCE((SELECT sum(r.amount) FROM external_transfer_reservations r
-        WHERE r.wallet_id=w.id AND r.status='ACTIVE'),0) reserved
+      COALESCE(sum(CASE WHEN e.entry_type='CREDIT' THEN e.amount ELSE -e.amount END),0) calculated
     FROM wallets w JOIN ledger_accounts a ON a.wallet_id=w.id
     LEFT JOIN journal_entries e ON e.ledger_account_id=a.id
     GROUP BY w.id
   ) position
-  WHERE ledger_balance<>calculated OR available_balance<>calculated-reserved;
-  IF violations <> 0 THEN RAISE EXCEPTION '% wallet projections differ from ledger/reservations', violations; END IF;
+  WHERE ledger_balance<>calculated OR available_balance<>calculated;
+  IF violations <> 0 THEN RAISE EXCEPTION '% wallet projections differ from ledger', violations; END IF;
 
   SELECT count(*) INTO violations FROM transfers t
   WHERE t.status IN('SUCCESSFUL','REVERSED') AND
@@ -40,12 +38,6 @@ BEGIN
     (SELECT count(*) FROM transfer_reversals r
       WHERE r.original_transfer_id=t.id AND r.status='SUCCESSFUL')<>1;
   IF violations <> 0 THEN RAISE EXCEPTION '% reversed transfers lack exactly one successful reversal', violations; END IF;
-
-  SELECT count(*) INTO violations FROM external_transfers e
-  JOIN external_transfer_reservations r ON r.external_transfer_id=e.id
-  WHERE (e.status='SUCCESSFUL' AND r.status<>'SETTLED')
-     OR (e.status='FAILED' AND r.status<>'RELEASED');
-  IF violations <> 0 THEN RAISE EXCEPTION '% terminal external transfers have invalid reservations', violations; END IF;
 
   SELECT count(*) INTO violations FROM (
     SELECT idempotency_record_id FROM transfers WHERE idempotency_record_id IS NOT NULL

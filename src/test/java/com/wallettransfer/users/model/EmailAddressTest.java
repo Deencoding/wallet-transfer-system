@@ -8,7 +8,8 @@ import org.junit.jupiter.api.Test;
 class EmailAddressTest {
     @Test
     void normalizesEmailIdentity() {
-        assertThat(new EmailAddress("  Customer@Example.COM ").value()).isEqualTo("customer@example.com");
+        EmailAddress email = new EmailAddress("  Customer@Example.COM ");
+        assertThat(email.value()).isEqualTo("customer@example.com");
     }
 
     @Test

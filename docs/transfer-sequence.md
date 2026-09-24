@@ -23,23 +23,4 @@ sequenceDiagram
   P->>DB: mark published
 ```
 
-No Kafka or provider call occurs while wallet locks are held.
-
-## External transfer uncertainty
-
-```mermaid
-sequenceDiagram
-  participant C as Client
-  participant A as API
-  participant DB as PostgreSQL
-  participant B as Provider
-  participant R as Reconciliation
-  C->>A: POST external transfer
-  A->>DB: reserve available funds and commit
-  A->>B: idempotent provider request
-  B--xA: timeout after possible processing
-  A->>DB: mark uncertain and schedule query
-  R->>B: query stable request reference
-  B-->>R: confirmed status
-  R->>DB: settle journal or release reservation once
-```
+No Kafka call occurs while wallet locks are held.

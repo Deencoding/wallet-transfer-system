@@ -1,5 +1,6 @@
 package com.wallettransfer.outbox.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallettransfer.outbox.exception.OutboxSerializationException;
 import com.wallettransfer.outbox.model.OutboxEvent;
@@ -29,18 +30,20 @@ public class OutboxService {
             String topic, String aggregateType, UUID aggregateId, String eventType, int version, Object payload) {
         try {
             UUID id = UUID.randomUUID();
-            repository.save(new OutboxEvent(
+            String serializedPayload = mapper.writeValueAsString(payload);
+            OutboxEvent event = new OutboxEvent(
                     id,
                     aggregateType,
                     aggregateId,
                     eventType,
                     version,
-                    mapper.writeValueAsString(payload),
+                    serializedPayload,
                     MDC.get("correlationId"),
                     topic,
-                    clock.instant()));
+                    clock.instant());
+            repository.save(event);
             return id;
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+        } catch (JsonProcessingException exception) {
             throw new OutboxSerializationException(exception);
         }
     }

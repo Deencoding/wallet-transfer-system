@@ -1,8 +1,10 @@
 package com.wallettransfer.authentication.security;
 
+import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Signature;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -25,9 +27,13 @@ public class RsaKeyProvider {
                 return generated;
             }
             KeyFactory factory = KeyFactory.getInstance("RSA");
-            KeyPair pair = new KeyPair(
-                    (RSAPublicKey) factory.generatePublic(new X509EncodedKeySpec(decode(properties.publicKey()))),
-                    (RSAPrivateKey) factory.generatePrivate(new PKCS8EncodedKeySpec(decode(properties.privateKey()))));
+            byte[] publicKeyBytes = decode(properties.publicKey());
+            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
+            RSAPublicKey publicKey = (RSAPublicKey) factory.generatePublic(publicKeySpec);
+            byte[] privateKeyBytes = decode(properties.privateKey());
+            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
+            RSAPrivateKey privateKey = (RSAPrivateKey) factory.generatePrivate(privateKeySpec);
+            KeyPair pair = new KeyPair(publicKey, privateKey);
             validate(pair);
             return pair;
         } catch (Exception exception) {
@@ -40,12 +46,12 @@ public class RsaKeyProvider {
         if (publicKey.getModulus().bitLength() < 2048) {
             throw new IllegalArgumentException("RSA key must be at least 2048 bits");
         }
-        byte[] challenge = "wallet-jwt-key-validation".getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        java.security.Signature signer = java.security.Signature.getInstance("SHA256withRSA");
+        byte[] challenge = "wallet-jwt-key-validation".getBytes(StandardCharsets.UTF_8);
+        Signature signer = Signature.getInstance("SHA256withRSA");
         signer.initSign(pair.getPrivate());
         signer.update(challenge);
         byte[] signature = signer.sign();
-        java.security.Signature verifier = java.security.Signature.getInstance("SHA256withRSA");
+        Signature verifier = Signature.getInstance("SHA256withRSA");
         verifier.initVerify(pair.getPublic());
         verifier.update(challenge);
         if (!verifier.verify(signature)) {

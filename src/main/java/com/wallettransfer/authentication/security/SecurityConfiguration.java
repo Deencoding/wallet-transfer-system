@@ -20,6 +20,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 @Configuration
 @EnableMethodSecurity
@@ -37,13 +38,13 @@ public class SecurityConfiguration {
                 .<GrantedAuthority>map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                 .toList());
         RateLimitFilter rateLimitFilter = new RateLimitFilter(rateLimits, securityAudit, mapper);
+        RequestSizeFilter requestSizeFilter = new RequestSizeFilter(mapper);
         return http.csrf(AbstractHttpConfigurer::disable)
                 .cors(AbstractHttpConfigurer::disable)
                 .headers(headers -> headers.contentTypeOptions(options -> {})
                         .frameOptions(frame -> frame.deny())
-                        .referrerPolicy(referrer -> referrer.policy(
-                                org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
-                                        .ReferrerPolicy.NO_REFERRER))
+                        .referrerPolicy(
+                                referrer -> referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
                         .permissionsPolicyHeader(
                                 policy -> policy.policy("camera=(), microphone=(), geolocation=(), payment=()"))
                         .contentSecurityPolicy(csp ->
@@ -53,11 +54,7 @@ public class SecurityConfiguration {
                                 hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000)))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(
-                                "/api/v1/auth/register",
-                                "/api/v1/auth/login",
-                                "/api/v1/auth/refresh",
-                                "/api/v1/webhooks/providers/**")
+                        .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh")
                         .permitAll()
                         .requestMatchers(
                                 "/actuator/health/**",
@@ -73,24 +70,22 @@ public class SecurityConfiguration {
                                 .authenticationEntryPoint((request, response, exception) -> {
                                     response.setStatus(401);
                                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                                    mapper.writeValue(
-                                            response.getOutputStream(),
-                                            new ApiError(
-                                                    request.getHeader("Authorization") == null
-                                                            ? "AUTHENTICATION_REQUIRED"
-                                                            : "INVALID_TOKEN",
-                                                    request.getHeader("Authorization") == null
-                                                            ? "Authentication is required"
-                                                            : "Token is invalid or expired"));
+                                    ApiError error = new ApiError(
+                                            request.getHeader("Authorization") == null
+                                                    ? "AUTHENTICATION_REQUIRED"
+                                                    : "INVALID_TOKEN",
+                                            request.getHeader("Authorization") == null
+                                                    ? "Authentication is required"
+                                                    : "Token is invalid or expired");
+                                    mapper.writeValue(response.getOutputStream(), error);
                                 }))
-                .addFilterBefore(new RequestSizeFilter(mapper), BearerTokenAuthenticationFilter.class)
+                .addFilterBefore(requestSizeFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(rateLimitFilter, BearerTokenAuthenticationFilter.class)
                 .exceptionHandling(errors -> errors.accessDeniedHandler((request, response, exception) -> {
                     response.setStatus(403);
                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                    mapper.writeValue(
-                            response.getOutputStream(),
-                            new ApiError("ACCESS_DENIED", "You are not permitted to perform this action"));
+                    ApiError error = new ApiError("ACCESS_DENIED", "You are not permitted to perform this action");
+                    mapper.writeValue(response.getOutputStream(), error);
                 }))
                 .build();
     }
