@@ -17,6 +17,14 @@ java {
     }
 }
 
+tasks.jar {
+    enabled = false
+}
+
+tasks.bootJar {
+    archiveFileName.set("app.jar")
+}
+
 repositories {
     mavenCentral()
 }

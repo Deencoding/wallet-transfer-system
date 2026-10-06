@@ -18,10 +18,7 @@ public class OutboxPublisher {
     private final KafkaTemplate<String, String> kafka;
     private final MeterRegistry metrics;
 
-    public OutboxPublisher(
-            OutboxClaimService claims,
-            KafkaTemplate<String, String> kafka,
-            MeterRegistry metrics) {
+    public OutboxPublisher(OutboxClaimService claims, KafkaTemplate<String, String> kafka, MeterRegistry metrics) {
         this.claims = claims;
         this.kafka = kafka;
         this.metrics = metrics;

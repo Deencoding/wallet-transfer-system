@@ -11,8 +11,7 @@ import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
 public class KafkaConsumerConfiguration {
     @Bean
     ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
-            ConsumerFactory<String, String> consumerFactory,
-            KafkaTemplate<String, String> template) {
+            ConsumerFactory<String, String> consumerFactory, KafkaTemplate<String, String> template) {
         var recoverer = new DeadLetterPublishingRecoverer(
                 template, (record, error) -> new TopicPartition(record.topic() + ".dlt", record.partition()));
         var backoff = new ExponentialBackOffWithMaxRetries(2);
